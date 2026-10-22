@@ -2,7 +2,10 @@
 name = "cuepoint"
 version = "0.3.0"
 description = "A screen-aware AI assistant for Windows"
-authors = ["Cuepoint contributors"]
+authors = ["Kushal Choudhary (@Kushal1213)"]
+homepage = "https://kushal1213.github.io/cuepoint/"
+repository = "https://github.com/Kushal1213/cuepoint"
+license = "AGPL-3.0-only"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

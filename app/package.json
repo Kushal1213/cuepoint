@@ -2,6 +2,19 @@
   "name": "cuepoint-desktop",
   "private": true,
   "version": "0.3.0",
+  "author": {
+    "name": "Kushal Choudhary",
+    "url": "https://github.com/Kushal1213"
+  },
+  "homepage": "https://kushal1213.github.io/cuepoint/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kushal1213/cuepoint.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Kushal1213/cuepoint/issues"
+  },
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "tauri": "tauri",

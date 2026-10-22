@@ -115,7 +115,7 @@ mod type_text_tests {
         }
     }
 
-    const DRAFT: &str = "Hi Jordan,\n\nThanks for reaching out, I'll have it ready Friday.\n\nBest,\nSatvik";
+    const DRAFT: &str = "Hi Jordan,\n\nThanks for reaching out, I'll have it ready Friday.\n\nBest,\nKushal";
 
     /// Reproduces the reported bug directly against enigo's own `text()`
     /// (not our wrapper): the cursor ends up one line down and every

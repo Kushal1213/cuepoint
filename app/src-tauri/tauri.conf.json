@@ -67,6 +67,7 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "Kushal Choudhary",
     "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",

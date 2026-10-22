@@ -14,6 +14,8 @@
   [![BYOK](https://img.shields.io/badge/AI-Gemini%20%7C%20OpenAI%20(BYOK)-8b5cf6)](#bring-your-own-key)
 
   [Website](https://kushal1213.github.io/cuepoint/) · [Setup Guide](https://kushal1213.github.io/cuepoint/setup.html) · [Privacy](https://kushal1213.github.io/cuepoint/privacy.html) · [Releases](https://github.com/Kushal1213/cuepoint/releases) · [Issues](https://github.com/Kushal1213/cuepoint/issues)
+
+  Developed and maintained by [Kushal Choudhary (@Kushal1213)](https://github.com/Kushal1213).
 </div>
 
 <p align="center">

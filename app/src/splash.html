@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cuepoint</title>
+    <style>
+      @keyframes cueBreathe {
+        0%, 100% { transform: scale(0.94); opacity: 0.72; }
+        50% { transform: scale(1.06); opacity: 1; }
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: transparent;
+        font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+        user-select: none;
+        overflow: hidden;
+      }
+      #panel {
+        width: 300px;
+        height: 180px;
+        box-sizing: border-box;
+        background: rgba(22, 24, 29, 0.86);
+        backdrop-filter: blur(30px) saturate(160%);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        opacity: 0;
+        transform: scale(0.94);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+      #panel.visible {
+        opacity: 1;
+        transform: scale(1);
+      }
+      #panel.leaving {
+        opacity: 0;
+        transform: scale(0.97);
+      }
+      #orb {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        flex-shrink: 0;
+      }
+      #orb-bloom {
+        position: absolute;
+        width: 102px;
+        height: 102px;
+        left: -19px;
+        top: -19px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 107, 87, 0.24), rgba(255, 107, 87, 0) 68%);
+        filter: blur(8px);
+        animation: cueBreathe 2.6s ease-in-out infinite;
+      }
+      #orb-body {
+        position: absolute;
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+        background: #17191d;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.36);
+      }
+      #orb-swirl {
+        position: absolute;
+        width: 34px;
+        height: 34px;
+        left: 13px;
+        top: 12px;
+        border-radius: 50%;
+        border: 6px solid #ff6b57;
+        border-right-color: transparent;
+        transform: rotate(35deg);
+      }
+      #orb-highlight {
+        position: absolute;
+        width: 24px;
+        height: 6px;
+        left: 37px;
+        top: 40px;
+        border-radius: 6px;
+        background: #ff6b57;
+        transform: rotate(45deg);
+        transform-origin: left center;
+      }
+      #wordmark {
+        font-size: 22px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.94);
+        letter-spacing: 0.01em;
+      }
+      #status {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.55);
+        opacity: 1;
+        transition: opacity 0.18s ease;
+        min-height: 16px;
+      }
+      #update-line {
+        font-size: 12px;
+        color: #ff9c8e;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+      #update-line.visible {
+        opacity: 1;
+      }
+      #update-line:hover {
+        color: #ffc2ba;
+        text-decoration: underline;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="panel">
+      <div id="orb">
+        <div id="orb-bloom"></div>
+        <div id="orb-body">
+          <div id="orb-swirl"></div>
+          <div id="orb-highlight"></div>
+        </div>
+      </div>
+      <div id="wordmark">Cuepoint</div>
+      <div id="status">Starting…</div>
+      <div id="update-line"></div>
+    </div>
+
+    <script type="module" src="/splash.js"></script>
+  </body>
+</html>

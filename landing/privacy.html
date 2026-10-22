@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cuepoint - Privacy</title>
+<meta name="description" content="What Cuepoint keeps on your computer, what leaves it and where it goes, and what its server holds. No accounts, no database of your data.">
+<link rel="canonical" href="https://www.cuepoint.duckdns.org/privacy.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Cuepoint">
+<meta property="og:title" content="Cuepoint - Privacy">
+<meta property="og:description" content="What Cuepoint keeps on your computer, what leaves it, and what its server holds. No accounts, no database of your data.">
+<meta property="og:url" content="https://www.cuepoint.duckdns.org/privacy.html">
+<meta property="og:image" content="https://www.cuepoint.duckdns.org/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Cuepoint: ask your screen anything. A Windows overlay with push-to-talk voice.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Cuepoint - Privacy">
+<meta name="twitter:description" content="What Cuepoint keeps on your computer, what leaves it, and what its server holds. No accounts, no database of your data.">
+<meta name="twitter:image" content="https://www.cuepoint.duckdns.org/og-image.png">
+<link rel="stylesheet" href="./style.css">
+<script src="./analytics.js" defer></script>
+</head>
+<body>
+
+<div class="bg-canvas">
+
+  <!-- Fixed Unified Navbar -->
+  <header class="site-header">
+    <div class="nav-container">
+      <a href="./index.html" class="nav-brand" aria-label="Cuepoint Home">
+        <div class="brand-orb"></div>
+        <div class="brand-title">Cuepoint</div>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav class="nav-menu" aria-label="Main Navigation">
+        <a href="./index.html#features" class="nav-link">Features</a>
+        <a href="./index.html#changelog" class="nav-link">Changelog</a>
+        <a href="./setup.html" class="nav-link">Setup Guide</a>
+        <a href="./privacy.html" class="nav-link active">Privacy</a>
+      </nav>
+
+      <div class="nav-actions">
+        <div class="version-badge">
+          <div class="live-dot"></div>
+          v0.3.0
+        </div>
+        <a href="https://github.com/Kushal1213/cuepoint/releases/download/v0.3.0/Cuepoint_0.3.0_x64-setup.exe" class="nav-cta-btn">
+          <div class="windows-grid-icon" style="width:13px;height:13px;">
+            <div></div><div></div><div></div><div></div>
+          </div>
+          <span>Download</span>
+        </a>
+        <button class="mobile-toggle" aria-label="Toggle navigation menu" aria-expanded="false">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Drawer -->
+  <div class="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation Menu">
+    <a href="./index.html#features" class="mobile-nav-link">
+      <span>Features</span>
+      <span style="font-size:12px;opacity:0.4;">→</span>
+    </a>
+    <a href="./index.html#changelog" class="mobile-nav-link">
+      <span>Changelog</span>
+      <span style="font-size:12px;opacity:0.4;">→</span>
+    </a>
+    <a href="./setup.html" class="mobile-nav-link">
+      <span>Setup Guide</span>
+      <span style="font-size:12px;opacity:0.4;">→</span>
+    </a>
+    <a href="./privacy.html" class="mobile-nav-link active">
+      <span>Privacy</span>
+      <span style="font-size:12px;color:var(--accent-primary);">●</span>
+    </a>
+    <div class="mobile-drawer-bottom">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;">
+        <span style="font-size:13px;color:var(--text-muted);">Current Release</span>
+        <div class="version-badge">
+          <div class="live-dot"></div>
+          v0.3.0
+        </div>
+      </div>
+      <a href="https://github.com/Kushal1213/cuepoint/releases/download/v0.3.0/Cuepoint_0.3.0_x64-setup.exe" class="nav-cta-btn">
+        <div class="windows-grid-icon">
+          <div></div><div></div><div></div><div></div>
+        </div>
+        <span>Download for Windows (x64)</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="page-content">
+
+    <div class="privacy-wrap">
+
+      <div>
+        <h1 style="font-size:clamp(30px, 5vw, 38px);font-weight:700;letter-spacing:-0.02em;margin:0 0 16px;">Privacy</h1>
+        <p style="font-size:16px;line-height:1.65;color:var(--text-secondary);margin:0 0 28px;max-width:620px;">Cuepoint has no accounts, no sign-in, and no database of your data. This page says exactly what stays on your computer, what leaves it and where it goes, and what little our server holds while it works.</p>
+        
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="privacy-point"><div style="width:6px;height:6px;border-radius:50%;background:#ff6b57;margin-top:8px;flex-shrink:0;"></div><div>Cuepoint does not save your screenshots, questions, clipboard text, or answers on any server of ours.</div></div>
+          <div class="privacy-point"><div style="width:6px;height:6px;border-radius:50%;background:#ff6b57;margin-top:8px;flex-shrink:0;"></div><div>Your API keys and tokens stay on your computer, encrypted with your Windows account.</div></div>
+          <div class="privacy-point"><div style="width:6px;height:6px;border-radius:50%;background:#ff6b57;margin-top:8px;flex-shrink:0;"></div><div>Anonymous usage data is off unless you turn it on, and even then it never includes what you asked or what was on your screen.</div></div>
+          <div class="privacy-point"><div style="width:6px;height:6px;border-radius:50%;background:#ff6b57;margin-top:8px;flex-shrink:0;"></div><div>Your requests do pass through to Google (and Tavily or GitHub if you connect them), so their terms apply too. Details below.</div></div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-top:16px;">Last updated 2026-09-29</div>
+      </div>
+
+      <div id="on-your-computer">
+        <h2 style="font-size:24px;font-weight:600;margin:0 0 14px;">What stays on your computer</h2>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 14px;">Cuepoint keeps a small folder of its own on your machine, and nothing in it is sent anywhere.</p>
+        <div class="privacy-table">
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Settings</strong><div>Your voice choice and on/off switches, plus the random ID used only if you opt in to usage data.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">API keys and tokens</strong><div>Gemini, OpenAI, Tavily and GitHub credentials, encrypted with Windows (DPAPI) so they only unlock under your Windows account. Copying the file to another machine or user gives you unreadable text.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Agent history</strong><div>Your last 50 multi-step runs: what you asked, the steps taken, any text it typed, and the final answer. No screenshots. Wipe it with "Clear history" in the History window.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Browser component</strong><div>The browser Cuepoint downloads the first time you run a browser task.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Your voice</strong><div>When you hold Ctrl + Win, speech is turned into text on your own computer by a speech model Cuepoint downloads once. The audio is never uploaded and never saved: it's discarded as soon as the text is ready. The microphone is only on while you hold the keys. Only the resulting text leaves your computer, exactly like a typed question. The exception is if you choose "My OpenAI key" under Settings → Voice: then your speech is sent straight from your computer to OpenAI, under your own key, to be turned into text. It does not pass through Cuepoint's server.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Voice shortcut</strong><div>To notice when you hold Ctrl + Win, Cuepoint uses a Windows keyboard hook that watches those two keys. It looks at nothing else you type and never records, stores or sends your keystrokes.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Speech model</strong><div>NVIDIA's Parakeet model (about 670 MB, licensed CC-BY-4.0), downloaded from Hugging Face the first time you set up voice. Downloading it tells Hugging Face your IP address, like any download.</div></div>
+        </div>
+        <p style="margin-top:16px;font-size:14px;color:var(--text-secondary);">To remove everything Cuepoint keeps locally, delete the folders <span style="font-family:var(--font-mono);font-size:12.5px;color:rgba(255,255,255,0.9);background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);border-radius:5px;padding:2px 7px;">%APPDATA%\dev.cuepoint.app</span> and <span style="font-family:var(--font-mono);font-size:12.5px;color:rgba(255,255,255,0.9);background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);border-radius:5px;padding:2px 7px;">%LOCALAPPDATA%\dev.cuepoint.app</span> (where the speech model lives).</p>
+      </div>
+
+      <div id="leaves-your-computer">
+        <h2 style="font-size:24px;font-weight:600;margin:0 0 14px;">What leaves your computer, and where it goes</h2>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 14px;">Cuepoint works by sending what it needs to answer you to a backend, which passes it to an AI model. The backend is hosted by the project, or you can run your own since the code is open source.</p>
+        <div class="privacy-table">
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Screenshot &amp; question</strong><div>Sent with every question. On a multi-step task a fresh screenshot is sent before each step. They go to Cuepoint's backend, which forwards them to the AI provider you picked in Settings (Google Gemini or OpenAI) using your own API key. Your OpenAI key is only sent when OpenAI is the chosen provider.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Clipboard text</strong><div>Only for <span style="font-family:var(--font-mono);font-size:12px;color:#ff9c8e;">agent:</span> tasks, sent along with the task so the agent can use it. Same path as above.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Browser page details</strong><div>During a browser task, the names of the buttons, links and fields on the page, and its address, are sent with each step so the model can pick what to click.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Web search terms</strong><div>Only if you connect Tavily and a task needs live information. Sent to Tavily through the backend using your key.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">GitHub requests</strong><div>Only if you connect GitHub. Read-only requests using your token. Nothing is ever written back to GitHub.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Update check</strong><div>Cuepoint asks GitHub for the latest release number on start. It sends no personal information.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Your API keys &amp; tokens</strong><div>Sent to the backend with each request only so it can call Google, Tavily or GitHub for you. They are used for that request and not stored.</div></div>
+        </div>
+      </div>
+
+      <div id="server-holds">
+        <h2 style="font-size:24px;font-weight:600;margin:0 0 14px;">What Cuepoint's server holds</h2>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 14px;">Nothing is written to a database, and the server's queue keeps no data on disk. What it does hold, and for how long:</p>
+        <div class="privacy-table">
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Screenshots &amp; questions</strong><div>In memory only, for as long as the request takes. Not saved.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Task results</strong><div>The answer and plan for an agent task wait in memory for 5 minutes so your app can pick them up, then expire.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Short conversation memory</strong><div>The last few questions and answers of a session, so follow-ups make sense. Kept in the server's memory only, never on disk, and cleared whenever the server restarts.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Your IP address</strong><div>Held in memory for about a minute to limit abuse (rate limiting), then dropped.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Logs</strong><div>Timings and error messages, such as how long a request took and whether it succeeded. Logs do not include your questions, screenshots, clipboard text, or answers, and are size-limited and rotated.</div></div>
+        </div>
+        <p style="margin-top:16px;font-size:14px;color:var(--text-secondary);">Like any web service, the infrastructure it runs on (hosting, DNS, certificates) necessarily sees standard connection details such as IP addresses. Cuepoint does not use them for anything.</p>
+      </div>
+
+      <div id="third-parties">
+        <h2 style="font-size:24px;font-weight:600;margin:0 0 14px;">Third parties</h2>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 12px;"><strong style="color:rgba(255,255,255,0.95);">Google (Gemini).</strong> Your screenshots and questions reach Google's Gemini API under your own API key. How Google handles that content depends on your key's plan, and its terms differ between free and paid use. Read <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Google's Gemini API terms</a> for your tier before using Cuepoint with anything sensitive.</p>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 12px;"><strong style="color:rgba(255,255,255,0.95);">OpenAI (if you choose it).</strong> If you switch the provider to OpenAI in Settings, your screenshots and questions go to OpenAI's API under your own key instead of Google's. Cuepoint asks OpenAI not to store its responses (the API's store option is turned off). See <a href="https://openai.com/policies/privacy-policy/" target="_blank" rel="noopener">OpenAI's privacy policy</a> and its API data controls for how it treats API traffic.</p>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 12px;"><strong style="color:rgba(255,255,255,0.95);">Tavily and GitHub.</strong> Only used if you connect them, and only for the requests described above. Their own policies apply to what they receive.</p>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 12px;"><strong style="color:rgba(255,255,255,0.95);">PostHog.</strong> Receives anonymous usage data from the app, and only if you opt in (see below), and anonymous page views from this website (see "This website").</p>
+      </div>
+
+      <div id="usage-data">
+        <h2 style="font-size:24px;font-weight:600;margin:0 0 14px;">Anonymous usage data (optional)</h2>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 14px;">Cuepoint asks once, the first time you use it, and the default is off. You can change your answer any time in Settings under "Share anonymous usage data".</p>
+        <div class="privacy-table">
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">If you turn it on, sent</strong><div>Which features get used, how many steps a task took, how it ended (finished, stopped, or errored), the Cuepoint version, your Windows build number, and a random ID made on your computer that isn't linked to you. Cuepoint also tells the analytics service not to record your IP address or location.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Never sent, on or off</strong><div>Screenshots, your questions or task text, clipboard contents, file names or contents, Cuepoint's answers, and API keys or tokens.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Where it goes</strong><div>PostHog, a product analytics service. See <a href="https://posthog.com/privacy" target="_blank" rel="noopener">PostHog's privacy policy</a>.</div></div>
+        </div>
+        <p style="margin-top:16px;font-size:14px;color:var(--text-secondary);">The random ID resets if you delete the settings file, and turning the option off stops anything further from being sent.</p>
+      </div>
+
+      <div id="website">
+        <h2 style="font-size:24px;font-weight:600;margin:0 0 14px;">This website</h2>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 14px;">To see how many people visit and which posts or links they came from, this site counts page views with PostHog. It is deliberately light.</p>
+        <div class="privacy-table">
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Counted</strong><div>Which page was opened, the site you came from and any <span style="font-family:var(--font-mono);font-size:12px;color:#ff9c8e;">utm_</span> tags on the link, your browser and device type, screen size, how far down the page you scrolled, and clicks on the download button and on links that leave the site.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Not used</strong><div>No cookies, no ads, no session recordings, and no IP address or location. The visit ID is random, stays in your browser only until you close the tab, and is not linked to you.</div></div>
+          <div class="privacy-row"><strong style="color:rgba(255,255,255,0.95);">Opting out</strong><div>Turn on Do Not Track or Global Privacy Control in your browser and nothing is sent. You can also add <span style="font-family:var(--font-mono);font-size:12px;color:#ff9c8e;">?notrack=1</span> to any address on this site to stop it in that browser.</div></div>
+        </div>
+      </div>
+
+      <div id="your-control">
+        <h2 style="font-size:24px;font-weight:600;margin:0 0 14px;">You're in control</h2>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 12px;">Turn usage data off in Settings, clear your history in the History window, disconnect any key from Settings, or delete the local folder to remove everything Cuepoint keeps. Cuepoint is open source under the AGPL-3.0, so you can read exactly what it does, or run your own backend instead of the hosted one.</p>
+        <p style="font-size:14.5px;line-height:1.65;color:var(--text-secondary);margin:0 0 12px;">Questions or concerns? Open an issue at <a href="https://github.com/Kushal1213/cuepoint/issues" target="_blank" rel="noopener">github.com/Kushal1213/cuepoint</a>.</p>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Unified Footer -->
+  <footer class="site-footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <div class="footer-orb"></div>
+        <div class="footer-tagline">Cuepoint - built for Windows.</div>
+      </div>
+      <div class="footer-copy">@satvikydv</div>
+    </div>
+  </footer>
+
+</div>
+
+<script src="./nav.js"></script>
+</body>
+</html>

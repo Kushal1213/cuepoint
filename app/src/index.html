@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cuepoint Overlay</title>
+  </head>
+  <body>
+    <div id="overlay-container">
+      <img id="screenshot-img" src="" alt="Screenshot" />
+      <div id="selection-box" style="display: none;"></div>
+      <div id="selection-label" class="selection-label hidden"></div>
+
+      <!-- "explain:" storyboard mode - box/line annotations (SVG, built in
+           main.js); point reuses the plain .pointer-marker div below. -->
+      <svg id="storyboard-svg"></svg>
+
+      <div id="storyboard-hint" class="storyboard-hint hidden">
+        <span>Esc to stop</span>
+      </div>
+
+      <div id="storyboard-bar" class="storyboard-bar hidden">
+        <div class="answer-header storyboard-bar-header">
+          <div class="avatar">
+            <div class="dot"></div>
+            <div class="speaking-orb">
+              <div class="orb-bloom"></div>
+              <div class="orb-core">
+                <div class="orb-swirl1"></div>
+                <div class="orb-swirl2"></div>
+                <div class="orb-nebula"></div>
+                <div class="orb-particle p1"></div>
+                <div class="orb-particle p2"></div>
+                <div class="orb-particle p3"></div>
+                <div class="orb-highlight"></div>
+              </div>
+            </div>
+          </div>
+          <div id="storyboard-progress" class="storyboard-progress"></div>
+        </div>
+        <div id="storyboard-caption" class="storyboard-caption"></div>
+      </div>
+
+      <div id="loading-indicator" class="loading-indicator hidden">
+        <div class="dot-bounce">
+          <span></span><span></span><span></span>
+        </div>
+        <span id="loading-label">Thinking&hellip;</span>
+      </div>
+
+      <div id="voice-pill" class="voice-pill hidden">
+        <div class="voice-meter" id="voice-meter">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <span id="voice-mode" class="voice-mode hidden">Agent</span>
+        <span id="voice-text" class="voice-text">Listening&hellip;</span>
+        <span class="voice-hint">Release to send</span>
+      </div>
+
+      <div id="direct-query-box" class="direct-query-box hidden">
+        <input id="direct-query-input" class="query-input direct-query-input" type="text" placeholder="What do you want to know? (or &quot;agent: &lt;task&gt;&quot;, &quot;explain: &lt;topic&gt;&quot;)" autocomplete="off" />
+        <div class="query-hint">Enter to send &middot; Esc to cancel</div>
+        <button id="btn-history" class="btn-history" title="Agent history">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 4.6V8L10.2 9.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg>
+        </button>
+      </div>
+
+      <div id="toolbar" class="toolbar hidden">
+        <button id="btn-cancel" class="toolbar-cancel">Cancel</button>
+        <div class="toolbar-divider"></div>
+        <input id="query-input" class="query-input toolbar-input" type="text" placeholder="Ask about this region&hellip; (or &quot;agent: &lt;task&gt;&quot;)" autocomplete="off" />
+        <button id="btn-submit" class="btn btn-primary">Process</button>
+      </div>
+
+      <div id="error-toast" class="error-toast hidden">
+        <div class="error-icon">!</div>
+        <div id="error-message" class="error-message"></div>
+        <div id="error-close" class="error-close">&times;</div>
+      </div>
+
+      <!-- Agent proposed-action confirm prompt - window goes interactive for
+           this, same as direct-query-box, since the confirm has to be a real
+           keypress (Enter/Esc), not a click (window is click-through
+           everywhere else, same reason every other close button was dropped).
+           Amber accent throughout, distinct from the normal blue UI chrome -
+           this is the one prompt where something is actually about to happen
+           on the user's desktop, not just an answer being shown. -->
+      <div id="action-confirm-box" class="action-confirm-box hidden">
+        <div class="action-confirm-header">
+          <div class="action-confirm-dot-wrap">
+            <div class="action-confirm-dot"></div>
+            <div class="action-confirm-ring"></div>
+          </div>
+          <div class="action-confirm-eyebrow">Action requested</div>
+        </div>
+
+        <div id="action-confirm-type" class="hidden">
+          <div id="action-confirm-type-title" class="action-confirm-title"></div>
+          <div class="action-confirm-subtitle">Will be typed into the focused field</div>
+        </div>
+
+        <div id="action-confirm-open" class="hidden">
+          <div id="action-confirm-open-title" class="action-confirm-title"></div>
+        </div>
+
+        <div class="action-confirm-footer">
+          <span class="action-confirm-key">Enter</span>
+          <span class="action-confirm-key-label">to confirm</span>
+          <span class="action-confirm-dot-sep"></span>
+          <span class="action-confirm-key">Esc</span>
+          <span class="action-confirm-key-label">to cancel</span>
+        </div>
+      </div>
+
+      <div id="action-running-pill" class="action-running-pill hidden">
+        <div class="dot-bounce amber">
+          <span></span><span></span><span></span>
+        </div>
+        <span id="action-running-text"></span>
+      </div>
+
+      <!-- Multi-step automation: one confirm for the whole rough plan up
+           front (not per-step - tedious past 2-3 steps), then it runs
+           automatically with a live step indicator and Esc-to-abort at any
+           point. Same amber family as the single-action confirm above. -->
+      <div id="multistep-confirm-box" class="action-confirm-box hidden">
+        <div class="action-confirm-header">
+          <div class="action-confirm-dot-wrap">
+            <div class="action-confirm-dot"></div>
+            <div class="action-confirm-ring"></div>
+          </div>
+          <div class="action-confirm-eyebrow">Multi-step action requested</div>
+        </div>
+        <div id="multistep-confirm-title" class="action-confirm-title"></div>
+        <ol id="multistep-confirm-plan" class="multistep-plan-list"></ol>
+        <div class="action-confirm-footer">
+          <span class="action-confirm-key">Enter</span>
+          <span class="action-confirm-key-label">to run</span>
+          <span class="action-confirm-dot-sep"></span>
+          <span class="action-confirm-key">Esc</span>
+          <span class="action-confirm-key-label">to cancel</span>
+        </div>
+      </div>
+
+      <!-- One-time, opt-in telemetry prompt. Default is OFF; this asks
+           once, remembers either answer, and can be changed any time in
+           Settings. Deliberately spells out what is NOT sent. -->
+      <div id="telemetry-consent-box" class="action-confirm-box hidden">
+        <div class="action-confirm-header">
+          <div class="action-confirm-dot-wrap">
+            <div class="action-confirm-dot"></div>
+            <div class="action-confirm-ring"></div>
+          </div>
+          <div class="action-confirm-eyebrow">Anonymous usage data</div>
+        </div>
+        <div class="action-confirm-title">Help improve Cuepoint by sharing anonymous usage data?</div>
+        <div class="action-confirm-subtitle">
+          No screenshots, queries, file contents, or tokens are ever sent. Just feature usage
+          and crash or error events. You can change this any time in Settings.
+        </div>
+        <div class="action-confirm-footer">
+          <span class="action-confirm-key">Enter</span>
+          <span class="action-confirm-key-label">to enable</span>
+          <span class="action-confirm-dot-sep"></span>
+          <span class="action-confirm-key">Esc</span>
+          <span class="action-confirm-key-label">to skip</span>
+        </div>
+      </div>
+
+      <div id="multistep-progress-pill" class="action-running-pill hidden">
+        <div class="dot-bounce amber">
+          <span></span><span></span><span></span>
+        </div>
+        <span id="multistep-progress-text"></span>
+        <span class="multistep-abort-hint">Esc to stop</span>
+      </div>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

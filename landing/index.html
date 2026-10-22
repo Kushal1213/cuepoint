@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17191d">
+  <title>Cuepoint | Ask your screen anything</title>
+  <meta name="description" content="Cuepoint sees what is on your Windows screen, answers in place, and acts only with your permission.">
+  <link rel="canonical" href="https://www.cuepoint.duckdns.org/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Cuepoint">
+  <meta property="og:title" content="Cuepoint | Ask your screen anything">
+  <meta property="og:description" content="A private, precise AI layer for Windows.">
+  <meta property="og:image" content="https://www.cuepoint.duckdns.org/og-image.png">
+  <meta property="og:image:alt" content="Cuepoint locates an answer on a Windows screen.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Cuepoint | Ask your screen anything">
+  <meta name="twitter:description" content="A private, precise AI layer for Windows.">
+  <meta name="twitter:image" content="https://www.cuepoint.duckdns.org/og-image.png">
+  <link rel="icon" href="./cuepoint-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./cuepoint.css">
+  <script src="./analytics.js" defer></script>
+  <script src="./cuepoint.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <a class="brand" href="./index.html" aria-label="Cuepoint home"><img src="./cuepoint-mark.svg" width="28" height="28" alt=""><span>Cuepoint</span></a>
+    <button class="menu-button" type="button" aria-controls="site-nav" aria-expanded="false">Menu</button>
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <a href="#capabilities">Capabilities</a><a href="#control">Control</a><a href="./setup.html">Setup</a><a href="./privacy.html">Privacy</a><a class="nav-download" href="https://github.com/Kushal1213/cuepoint/releases/latest">Download</a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero shell">
+      <div class="hero-copy reveal">
+        <p class="product-line">AI that meets you where you work</p>
+        <h1>See it. Ask it. Done.</h1>
+        <p class="hero-lede">Understand any screen, get an answer in place, and act only when you say so.</p>
+        <div class="hero-actions"><a class="button button-primary" href="https://github.com/Kushal1213/cuepoint/releases/latest">Download for Windows</a><a class="button button-secondary" href="https://github.com/Kushal1213/cuepoint">View source</a></div>
+        <p class="hotkey"><kbd>Ctrl</kbd><span>+</span><kbd>Alt</kbd><span>+</span><kbd>Space</kbd> from anywhere</p>
+      </div>
+      <figure class="hero-media reveal"><img src="./cuepoint-hero.png" width="1536" height="1024" alt="A precise coral cue identifying one point on a desktop screen" fetchpriority="high"></figure>
+    </section>
+    <section class="proof-strip" aria-label="Product principles">
+      <div class="shell proof-grid"><p><strong>Local voice</strong><span>Audio stays on your computer</span></p><p><strong>Your model</strong><span>Gemini or OpenAI with your key</span></p><p><strong>Your call</strong><span>Every action follows your permission</span></p></div>
+    </section>
+    <section id="capabilities" class="section shell">
+      <div class="section-heading reveal"><h2>Context without the context switch.</h2><p>Cuepoint reads the screen you are already on and puts the response beside the thing you asked about.</p></div>
+      <div class="capability-grid">
+        <article class="capability capability-wide reveal"><div><h3>Ask directly</h3><p>Press one shortcut, ask a question, and keep your current window in focus.</p></div><div class="prompt-sample" aria-label="Example Cuepoint question"><span>What is causing this build error?</span><span class="cue-target" aria-hidden="true"></span></div></article>
+        <article class="capability capability-accent reveal"><h3>Talk naturally</h3><p>Hold <strong>Ctrl + Win</strong>, speak, and release. Transcription happens on your device.</p><div class="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
+        <article class="capability reveal"><h3>Explain visually</h3><p>Use <code>explain:</code> for a narrated walkthrough drawn onto the screen.</p></article>
+        <article class="capability capability-dark reveal"><h3>Hand off the task</h3><p>Use <code>agent:</code> to type, open apps, or complete a browser flow after approval.</p></article>
+        <article class="capability capability-photo reveal"><img src="./cuepoint-voice.png" alt="A hand using a keyboard while a coral voice waveform appears across the desk" loading="lazy"></article>
+      </div>
+    </section>
+    <section id="control" class="control-section">
+      <div class="shell control-grid">
+        <div class="control-copy reveal"><h2>You stay in control.</h2><p>Choose how Cuepoint handles on-screen actions. Keep confirmation on, allow trusted flows, or turn actions off completely.</p><a class="text-link" href="./privacy.html">Read the privacy model</a></div>
+        <div class="permission-list reveal"><div><span>Ask first</span><strong>Default</strong><p>Review the action, then press Enter.</p></div><div><span>Always allow</span><p>Run approved workflows without repeated prompts. Esc always stops the run.</p></div><div><span>Answers only</span><p>Disable typing, clicking, and app launches.</p></div></div>
+      </div>
+    </section>
+    <section class="open-source shell reveal"><div><h2>Open code. Private by design.</h2><p>Screenshots pass through the relay for each request and are not retained. Telemetry is optional and off by default.</p></div><a class="button button-primary" href="./setup.html">Set up Cuepoint</a></section>
+  </main>
+  <footer class="footer shell"><a class="brand" href="./index.html" aria-label="Cuepoint home"><img src="./cuepoint-mark.svg" width="24" height="24" alt=""><span>Cuepoint</span></a><p>Built for Windows. Licensed under AGPLv3.</p><nav aria-label="Footer navigation"><a href="./setup.html">Setup</a><a href="./privacy.html">Privacy</a><a href="https://github.com/Kushal1213/cuepoint">GitHub</a></nav></footer>
+</body>
+</html>

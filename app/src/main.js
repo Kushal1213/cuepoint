@@ -1,0 +1,1904 @@
+import { parseVoiceCommand, voiceToQuery } from './voice-command.js';
+
+const { listen } = window.__TAURI__.event;
+const { invoke } = window.__TAURI__.core;
+const { Window } = window.__TAURI__.window;
+
+// Backend URL + client key come from Rust (app/src-tauri/src/api_config.rs),
+// which picks local vs. prod at compile time from CUEPOINT_ENV in its own
+// .env - JS has no build step of its own, so it just follows whatever this
+// particular build was compiled for instead of keeping a second switch here.
+const { base_url: API_BASE_URL, client_key: CLIENT_KEY } = await invoke('get_api_config');
+const API_HEADERS = { "Content-Type": "application/json", "X-Cuepoint-Client-Key": CLIENT_KEY };
+
+const container = document.getElementById('overlay-container');
+const img = document.getElementById('screenshot-img');
+const selectionBox = document.getElementById('selection-box');
+const selectionLabel = document.getElementById('selection-label');
+const toolbar = document.getElementById('toolbar');
+const btnCancel = document.getElementById('btn-cancel');
+const btnSubmit = document.getElementById('btn-submit');
+const queryInput = document.getElementById('query-input');
+const loadingIndicator = document.getElementById('loading-indicator');
+const loadingLabel = document.getElementById('loading-label');
+const directQueryBox = document.getElementById('direct-query-box');
+const directQueryInput = document.getElementById('direct-query-input');
+const btnHistory = document.getElementById('btn-history');
+const errorToast = document.getElementById('error-toast');
+const errorMessage = document.getElementById('error-message');
+const errorClose = document.getElementById('error-close');
+
+let errorTimer = null;
+
+// Unlike the alert() this replaced, the toast doesn't block - so whatever
+// should happen once the user's done with it (typically hiding the window
+// again) has to run from here, on close or timeout, not right after the
+// call that raised it.
+function showError(message, onDismissed) {
+    if (errorTimer) clearTimeout(errorTimer);
+    errorMessage.textContent = message;
+    errorToast.classList.remove('hidden');
+    const dismiss = () => {
+        errorToast.classList.add('hidden');
+        if (onDismissed) onDismissed();
+    };
+    errorClose.onclick = () => {
+        clearTimeout(errorTimer);
+        dismiss();
+    };
+    errorTimer = setTimeout(dismiss, 6000);
+}
+
+/// Error toast over the transparent overlay, without changing the window:
+/// no focus taken, stays click-through, no screenshot re-shown. Reported:
+/// the whole overlay turned white behind a connection-error toast; the old
+/// error paths were the only ones that took focus, turned click-through
+/// off and (region flow) re-showed the full-screen frozen capture, so all
+/// of that is gone. Esc (global shortcut) or the 6 s timeout closes it; the
+/// close button is hidden since a click-through window can't receive the
+/// click anyway.
+async function showOverlayError(message) {
+    const appWindow = Window.getCurrent();
+    loadingIndicator.classList.add('hidden');
+    voicePill.classList.add('hidden');
+    img.style.display = 'none';
+    errorClose.classList.add('hidden');
+    await appWindow.setIgnoreCursorEvents(true);
+    await appWindow.show();
+    await enableEscapeDismiss();
+    showError(message, () => {
+        errorClose.classList.remove('hidden');
+        dismissOverlay();
+    });
+}
+
+// Builds (or returns the existing) answer bubble: a small "CUEPOINT" header
+// plus a body span the streaming listener appends into. Kept as one helper
+// so the stream-chunk listener and renderResponse never disagree on shape.
+function getOrCreateTooltip() {
+    let tooltip = document.getElementById('answer-tooltip');
+    if (tooltip) return tooltip;
+
+    tooltip = document.createElement('div');
+    tooltip.id = 'answer-tooltip';
+    tooltip.className = 'answer-tooltip';
+    tooltip.innerHTML = `
+        <div class="answer-header">
+            <div class="avatar">
+                <div class="dot"></div>
+                <div class="speaking-orb">
+                    <div class="orb-bloom"></div>
+                    <div class="orb-core">
+                        <div class="orb-swirl1"></div>
+                        <div class="orb-swirl2"></div>
+                        <div class="orb-nebula"></div>
+                        <div class="orb-particle p1"></div>
+                        <div class="orb-particle p2"></div>
+                        <div class="orb-particle p3"></div>
+                        <div class="orb-highlight"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="label">Cuepoint</div>
+        </div>
+        <div class="answer-body"><span id="answer-text"></span><span id="answer-caret" class="answer-caret"></span></div>
+    `;
+    container.appendChild(tooltip);
+    return tooltip;
+}
+
+let speakingTimer = null;
+let ttsEndedUnlisten = null;
+let speakingOnEnded = null;
+
+// Swaps the header's plain dot for the animated "speaking" orb, synced to
+// Rust's real `tts-ended` event (emitted from MediaPlayer's MediaEnded) -
+// registered *before* speak_text is invoked so there's no race with a very
+// short utterance finishing before the listener attaches. The word-count
+// timer is now just a safety ceiling in case the event is ever missed
+// (playback error swallowed, event lost), generous enough to never fire
+// before real narration of that length would plausibly finish.
+//
+// `header` must be passed explicitly by the caller, not looked up here via a
+// blind `.answer-header` selector - the normal answer tooltip's header and
+// the storyboard bar's header both alias the same class and are BOTH always
+// present in the DOM at once (the storyboard bar is just hidden via a CSS
+// class, not removed), and the storyboard bar happens to appear first in
+// document order. A blind selector silently toggled `.speaking` on the
+// hidden storyboard header for every normal narrated answer - no visible
+// effect, since it's not the one on screen - while storyboard mode's own
+// header happened to be right by coincidence. Real bug, found live.
+async function startSpeakingIndicator(text, onEnded, header) {
+    stopSpeakingIndicator();
+    if (!header) return;
+    header.classList.add('speaking');
+    speakingOnEnded = onEnded || null;
+
+    try {
+        ttsEndedUnlisten = await listen('tts-ended', () => finishSpeakingIndicator());
+    } catch (e) {
+        console.error('Failed to listen for tts-ended:', e);
+    }
+
+    const wordCount = text ? text.split(/\s+/).length : 0;
+    const fallbackMs = Math.max(4000, (wordCount / 2.5) * 1000 * 2.5);
+    speakingTimer = setTimeout(() => finishSpeakingIndicator(), fallbackMs);
+}
+
+// Natural end (real event or fallback timeout) - runs the caller's onEnded
+// callback exactly once, unlike stopSpeakingIndicator() which is a hard stop
+// (dismiss) with no callback.
+function finishSpeakingIndicator() {
+    const cb = speakingOnEnded;
+    stopSpeakingIndicator();
+    if (cb) cb();
+}
+
+function stopSpeakingIndicator() {
+    if (speakingTimer) {
+        clearTimeout(speakingTimer);
+        speakingTimer = null;
+    }
+    if (ttsEndedUnlisten) {
+        ttsEndedUnlisten();
+        ttsEndedUnlisten = null;
+    }
+    speakingOnEnded = null;
+    // Clears from whichever header(s) actually have it - both the tooltip's
+    // and the storyboard bar's answer-header alias the same class, and only
+    // one is ever actually marked speaking in practice, but this doesn't
+    // need to guess which; querySelectorAll finds it regardless of caller.
+    document.querySelectorAll('.answer-header.speaking').forEach((h) => h.classList.remove('speaking'));
+}
+
+let isDrawing = false;
+let startX = 0;
+let startY = 0;
+let currentRect = null;
+let closeTimer = null;
+// 'region' = manual drag-to-crop flow (secondary hotkey, Ctrl+Alt+Shift+Space)
+// 'direct' = single-press capture + ask-a-question flow (primary hotkey, Ctrl+Alt+Space)
+let mode = 'region';
+
+// Shared across both flows: tags each in-flight backend request so a stale
+// one (superseded by a newer press/submission, or outlived by a manual
+// dismiss) can be told apart from the current one and ignored instead of
+// resurrecting the overlay with old content (PRD §8: "second press should
+// refresh capture... not stack a second overlay").
+let activeRequestId = 0;
+
+// Secondary hotkey: manual region-select flow. Shows the full screenshot and
+// waits for the user to drag a crop box before doing anything.
+listen('show-overlay', async (event) => {
+    if (closeTimer) clearTimeout(closeTimer);
+    mode = 'region';
+    activeRequestId++;
+
+    const appWindow = Window.getCurrent();
+    await appWindow.setIgnoreCursorEvents(false);
+
+    img.src = event.payload;
+    resetSelection();
+});
+
+// Escape is normally just a DOM keydown listener (see bottom of file), but
+// that depends on the webview actually holding OS keyboard focus - which is
+// unreliable while the window is click-through (setIgnoreCursorEvents(true),
+// used throughout answer display). These wrap a Rust-side global shortcut
+// that works regardless of focus; registered only while an answer is
+// showing, so it doesn't swallow Escape for other apps the rest of the time.
+async function enableEscapeDismiss() {
+    try {
+        await invoke('enable_escape_dismiss');
+    } catch (e) {
+        console.warn('enable_escape_dismiss failed:', e);
+    }
+}
+
+async function disableEscapeDismiss() {
+    try {
+        await invoke('disable_escape_dismiss');
+    } catch (e) {
+        console.warn('disable_escape_dismiss failed:', e);
+    }
+}
+
+listen('dismiss-overlay', async () => {
+    await dismissOverlay();
+    resetSelection();
+});
+
+// Live answer streaming: the Rust command forwards each chunk from the
+// backend's streaming endpoint here, tagged with the request_id it was
+// called with. Only chunks matching the current request are applied - a
+// superseded request's trailing chunks are dropped, same idea as the
+// requestId guard on the final response.
+listen('analyze-stream-chunk', (event) => {
+    const { request_id, text } = event.payload;
+    if (String(activeRequestId) !== request_id) return;
+
+    loadingIndicator.classList.add('hidden');
+    getOrCreateTooltip();
+    document.getElementById('answer-text').textContent += text;
+});
+
+// Primary hotkey: fires immediately on hotkey press. Rust has already
+// captured the screen, burned a marker in at the cursor position, and
+// stashed it - this just opens a small input for the user's question. The
+// actual backend call only fires once they submit (see runDirectAnalysis).
+listen('show-overlay-direct', async () => {
+    if (closeTimer) clearTimeout(closeTimer);
+    mode = 'direct';
+    activeRequestId++; // invalidate anything still in flight from before
+
+    img.style.display = 'none';
+    selectionBox.style.display = 'none';
+    selectionLabel.classList.add('hidden');
+    toolbar.classList.add('hidden');
+    currentRect = null;
+    loadingIndicator.classList.add('hidden');
+    const oldTooltip = document.getElementById('answer-tooltip');
+    if (oldTooltip) oldTooltip.remove();
+    const oldMarker = document.getElementById('pointer-marker');
+    if (oldMarker) oldMarker.remove();
+
+    const appWindow = Window.getCurrent();
+
+    // Question step is interactive - unlike the click-through answer-display
+    // phase, the user needs to actually type here, so the window must accept
+    // keyboard/mouse input.
+    await appWindow.setIgnoreCursorEvents(false);
+    await appWindow.show();
+    await appWindow.setFocus();
+
+    // First run only: ask about telemetry before the query box appears, so
+    // the very first event a user could generate is already governed by
+    // their answer. Returns immediately on every later run.
+    await askTelemetryConsentIfNeeded();
+
+    directQueryInput.value = '';
+    directQueryBox.classList.remove('hidden');
+    btnHistory.classList.remove('hidden');
+    directQueryInput.focus();
+});
+
+// ---------------------------------------------------------------------
+// Push-to-talk (hold Ctrl+Win). Rust owns the hotkey, mic and on-device
+// transcription (src-tauri/src/voice); this side only shows the listening
+// state and, on release, sends the transcript down the exact same path as
+// a typed question.
+// ---------------------------------------------------------------------
+const voicePill = document.getElementById('voice-pill');
+const voiceText = document.getElementById('voice-text');
+const voiceMeter = document.getElementById('voice-meter');
+
+const voiceMode = document.getElementById('voice-mode');
+
+/// Badge on the listening pill once "agent" / "explain" is recognised in
+/// the live transcript (see voice-command.js), so a missed keyword is
+/// visible before release rather than after.
+function showVoiceMode(text) {
+    const { mode } = parseVoiceCommand(text);
+    voiceMode.classList.toggle('hidden', !mode);
+    voiceMode.classList.toggle('explain', mode === 'explain');
+    if (mode) voiceMode.textContent = mode === 'agent' ? 'Agent' : 'Explain';
+}
+
+/// Coarse buckets only; the transcript itself is never sent.
+function voiceBucket(ms) {
+    if (ms < 500) return '<0.5s';
+    if (ms < 1000) return '0.5-1s';
+    if (ms < 3000) return '1-3s';
+    if (ms < 10000) return '3-10s';
+    return '10s+';
+}
+
+async function showVoiceError(message) {
+    await showOverlayError(message);
+}
+
+listen('voice-listening', async () => {
+    if (closeTimer) clearTimeout(closeTimer);
+    mode = 'direct';
+    activeRequestId++; // aborts anything in flight, same as the typed hotkey
+
+    img.style.display = 'none';
+    selectionBox.style.display = 'none';
+    selectionLabel.classList.add('hidden');
+    toolbar.classList.add('hidden');
+    currentRect = null;
+    loadingIndicator.classList.add('hidden');
+    directQueryBox.classList.add('hidden');
+    btnHistory.classList.add('hidden');
+    errorToast.classList.add('hidden');
+    for (const id of ['action-confirm-box', 'action-running-pill', 'multistep-confirm-box', 'multistep-progress-pill']) {
+        document.getElementById(id).classList.add('hidden');
+    }
+    const oldTooltip = document.getElementById('answer-tooltip');
+    if (oldTooltip) oldTooltip.remove();
+    const oldMarker = document.getElementById('pointer-marker');
+    if (oldMarker) oldMarker.remove();
+
+    voiceText.textContent = 'Listening…';
+    voiceMode.classList.add('hidden');
+    voiceMeter.style.setProperty('--level', '0');
+    voicePill.classList.remove('hidden');
+
+    // Click-through and never focused: the user is holding Ctrl+Win over
+    // whatever app they're in, and that app has to stay the foreground
+    // window (an agent action types into it afterwards).
+    const appWindow = Window.getCurrent();
+    await appWindow.setIgnoreCursorEvents(true);
+    await appWindow.show();
+});
+
+listen('voice-level', (event) => {
+    // Speech RMS sits around 0.02-0.2; scale so normal talking fills the bars.
+    const level = Math.min(1, (event.payload.level || 0) * 8);
+    voiceMeter.style.setProperty('--level', level.toFixed(3));
+});
+
+listen('voice-partial', (event) => {
+    if (event.payload.text) {
+        voiceText.textContent = event.payload.text;
+        showVoiceMode(event.payload.text);
+    }
+});
+
+listen('voice-final', (event) => {
+    const { text, engine, duration_ms, latency_ms } = event.payload;
+    voicePill.classList.add('hidden');
+    const outcome = text && text.trim() ? 'ok' : 'empty';
+    captureTelemetry('voice_query_used', {
+        engine,
+        outcome,
+        duration: voiceBucket(duration_ms),
+        latency: voiceBucket(latency_ms),
+    });
+    if (outcome === 'empty') {
+        showVoiceError("Didn't catch that. Hold Ctrl+Win, speak, then let go.");
+        return;
+    }
+    runDirectAnalysis(voiceToQuery(text), 'voice');
+});
+
+listen('voice-cancelled', () => {
+    voicePill.classList.add('hidden');
+    dismissOverlay();
+});
+
+listen('voice-error', (event) => {
+    captureTelemetry('voice_query_used', { outcome: 'error' });
+    showVoiceError(event.payload.message);
+});
+
+directQueryInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const text = directQueryInput.value.trim();
+        directQueryBox.classList.add('hidden');
+        btnHistory.classList.add('hidden');
+        runDirectAnalysis(text);
+    }
+    // Escape falls through to the document-level keydown handler below -
+    // the window is interactive at this point, so it's reliably delivered.
+});
+
+async function runDirectAnalysis(queryText, source = 'typed') {
+    const requestId = ++activeRequestId;
+    const appWindow = Window.getCurrent();
+
+    const agentMatch = queryText.trim().match(/^agent:\s*(.*)$/i);
+    const explainMatch = queryText.trim().match(/^explain:\s*(.*)$/i);
+
+    loadingLabel.textContent = agentMatch ? 'Queueing…' : (explainMatch ? 'Preparing…' : 'Thinking…');
+    loadingIndicator.classList.remove('hidden');
+    await appWindow.setIgnoreCursorEvents(true);
+    await enableEscapeDismiss();
+
+    try {
+        if (explainMatch) {
+            const topic = explainMatch[1] || queryText;
+            captureTelemetry('direct_query_sent', { mode: 'explain', source });
+            const storyboard = await invoke('process_explain', { topic });
+            trackQueryOutcome('explain', 'ok', source);
+            console.log('[explain] storyboard steps:', JSON.stringify(storyboard.steps, null, 2));
+
+            if (requestId !== activeRequestId) return; // superseded by a later press
+
+            loadingIndicator.classList.add('hidden');
+            await appWindow.show();
+            await appWindow.setAlwaysOnTop(true);
+            await appWindow.setFocus();
+
+            await playStoryboard(storyboard.steps, requestId);
+            return;
+        }
+
+        const agentTaskDescription = agentMatch ? (agentMatch[1] || "Analyze this for agent actions") : null;
+        // Fired here, when a question is actually sent - not on the hotkey
+        // press, which only opens the overlay (it used to fire from Rust at
+        // capture time, so it counted overlay opens, including cancelled
+        // ones). agent: tasks report through their own agent_task_* events.
+        if (!agentMatch) captureTelemetry('direct_query_sent', { mode: 'direct', source });
+        const response = agentMatch
+            ? await runAgentTask(agentTaskDescription, source)
+            : await invoke('process_direct', {
+                query: queryText || null,
+                requestId: String(requestId)
+            });
+        if (!agentMatch) trackQueryOutcome('direct', response.answer_text, source);
+
+        if (requestId !== activeRequestId) return; // superseded by a later press
+
+        loadingIndicator.classList.add('hidden');
+        // Re-assert show()/alwaysOnTop, not just setFocus(). alwaysOnTop is
+        // set once at window creation - if any other topmost window (a
+        // fullscreen video, a PiP player, DevTools) has since grabbed
+        // topmost status, our window can end up genuinely behind it in
+        // z-order even though Tauri still considers it "shown". Forcing it
+        // here re-asserts frontmost at the exact moment we display the answer.
+        await appWindow.show();
+        await appWindow.setAlwaysOnTop(true);
+        await appWindow.setFocus();
+
+        if (response.multi_step_plan) {
+            await runMultiStepLoop(agentTaskDescription, response.multi_step_plan, source);
+            return;
+        }
+
+        await confirmProposedActionIfAny(response.proposed_action);
+        if (requestId !== activeRequestId) return; // could've been superseded during the confirm wait
+
+        const rect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+        renderResponse(response, rect);
+    } catch (error) {
+        if (requestId !== activeRequestId) return;
+        if (!agentMatch) trackQueryOutcome(explainMatch ? 'explain' : 'direct', 'exception', source);
+
+        console.error("Error in direct analysis:", error);
+        await showOverlayError(`${error}`);
+    }
+}
+
+// "explain: <topic>" storyboard playback - sequentially shows each step's
+// narration + optional annotation in a dedicated bottom caption bar (not the
+// normal answer bubble), waiting for that step's narration to actually
+// finish speaking (real tts-ended event, or the fallback estimate - see
+// startSpeakingIndicator) before advancing, rather than a fixed delay per
+// step. `requestId` guards against a dismiss/new-request superseding this
+// mid-playback (checked between every step, not just at the start).
+async function playStoryboard(steps, requestId) {
+    const bar = document.getElementById('storyboard-bar');
+    const progress = document.getElementById('storyboard-progress');
+    const caption = document.getElementById('storyboard-caption');
+    const hint = document.getElementById('storyboard-hint');
+
+    progress.innerHTML = '';
+    const dotEls = steps.map(() => {
+        const dot = document.createElement('div');
+        dot.className = 'storyboard-progress-dot';
+        progress.appendChild(dot);
+        return dot;
+    });
+    const setActiveDot = (activeIdx) => {
+        dotEls.forEach((dot, idx) => dot.classList.toggle('active', idx === activeIdx));
+    };
+
+    const endStoryboardUi = () => {
+        clearTimeout(hintTimer);
+        hint.classList.add('hidden');
+        bar.classList.add('hidden');
+        clearStoryboardShapes();
+    };
+
+    bar.classList.remove('hidden');
+    hint.classList.remove('hidden');
+    let hintTimer = setTimeout(() => hint.classList.add('hidden'), 4200);
+
+    for (let i = 0; i < steps.length; i++) {
+        if (requestId !== activeRequestId) { endStoryboardUi(); return; }
+        const step = steps[i];
+
+        setActiveDot(i);
+        caption.textContent = step.narration;
+        renderStoryboardShape(step);
+
+        await speakStepAndWait(step.narration);
+    }
+
+    clearTimeout(hintTimer);
+    hint.classList.add('hidden');
+    if (requestId !== activeRequestId) { bar.classList.add('hidden'); clearStoryboardShapes(); return; }
+    clearStoryboardShapes();
+    bar.classList.add('hidden');
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => dismissOverlay(), 5000);
+}
+
+function clearStoryboardShapes() {
+    const oldMarker = document.getElementById('pointer-marker');
+    if (oldMarker) oldMarker.remove();
+    const oldBox = document.getElementById('storyboard-box');
+    if (oldBox) oldBox.remove();
+    const oldLine = document.getElementById('storyboard-line');
+    if (oldLine) oldLine.remove();
+    const oldHead = document.getElementById('storyboard-line-head');
+    if (oldHead) oldHead.remove();
+}
+
+// Renders whichever single shape a storyboard step carries. "point" reuses
+// the same red (#ff5470) marker the normal single-answer flow draws. "box"
+// and "line" are blue (#ff6b57, the UI-chrome accent - point stays a distinct
+// "reference" red, box/line read as "here's the relevant area") SVG elements
+// in #storyboard-svg, each with a draw-on animation: box traces its own
+// perimeter via stroke-dashoffset, line extends from start to end the same
+// way with a computed arrowhead (perpendicular-offset triangle, not an SVG
+// <marker>) that only fades in once the line is mostly drawn.
+function renderStoryboardShape(step) {
+    clearStoryboardShapes();
+    if (!step.shape) return;
+
+    const x1 = clampUnit(step.x_norm) * window.innerWidth;
+    const y1 = clampUnit(step.y_norm) * window.innerHeight;
+
+    if (step.shape === 'point') {
+        const marker = document.createElement('div');
+        marker.id = 'pointer-marker';
+        marker.className = 'pointer-marker';
+        marker.style.left = x1 + 'px';
+        marker.style.top = y1 + 'px';
+        container.appendChild(marker);
+        return;
+    }
+
+    if (step.x2_norm == null || step.y2_norm == null) return;
+    const x2 = clampUnit(step.x2_norm) * window.innerWidth;
+    const y2 = clampUnit(step.y2_norm) * window.innerHeight;
+    const svg = document.getElementById('storyboard-svg');
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    if (step.shape === 'box') {
+        const bx = Math.min(x1, x2);
+        const by = Math.min(y1, y2);
+        const bw = Math.abs(x2 - x1);
+        const bh = Math.abs(y2 - y1);
+        const perimeter = 2 * (bw + bh);
+
+        const rect = document.createElementNS(SVG_NS, 'rect');
+        rect.id = 'storyboard-box';
+        rect.setAttribute('x', bx);
+        rect.setAttribute('y', by);
+        rect.setAttribute('width', bw);
+        rect.setAttribute('height', bh);
+        rect.setAttribute('rx', 5);
+        rect.setAttribute('fill', 'rgba(255,107,87,0.03)');
+        rect.setAttribute('stroke', '#ff6b57');
+        rect.setAttribute('stroke-width', 2);
+        rect.setAttribute('stroke-dasharray', String(perimeter));
+        rect.setAttribute('stroke-dashoffset', String(perimeter));
+        svg.appendChild(rect);
+
+        rect.getBoundingClientRect(); // force layout before animating
+        rect.style.transition = 'stroke-dashoffset 0.5s ease, fill 0.5s ease';
+        requestAnimationFrame(() => {
+            rect.setAttribute('stroke-dashoffset', '0');
+            rect.setAttribute('fill', 'rgba(255,107,87,0.12)');
+        });
+    } else if (step.shape === 'line') {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len, uy = dy / len;
+        const px = -uy, py = ux; // perpendicular unit vector, for the arrowhead's width
+        const headLen = 11, headWidth = 4.5;
+        const backX = x2 - ux * headLen;
+        const backY = y2 - uy * headLen;
+
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.id = 'storyboard-line';
+        path.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+        path.setAttribute('stroke', '#ff6b57');
+        path.setAttribute('stroke-width', 2.5);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-dasharray', String(len));
+        path.setAttribute('stroke-dashoffset', String(len));
+        svg.appendChild(path);
+
+        const head = document.createElementNS(SVG_NS, 'polygon');
+        head.id = 'storyboard-line-head';
+        const points = `${x2},${y2} ${(backX + px * headWidth).toFixed(1)},${(backY + py * headWidth).toFixed(1)} ${(backX - px * headWidth).toFixed(1)},${(backY - py * headWidth).toFixed(1)}`;
+        head.setAttribute('points', points);
+        head.setAttribute('fill', '#ff6b57');
+        head.style.opacity = '0';
+        svg.appendChild(head);
+
+        path.getBoundingClientRect();
+        path.style.transition = 'stroke-dashoffset 0.4s ease';
+        head.style.transition = 'opacity 0.15s ease';
+        requestAnimationFrame(() => {
+            path.setAttribute('stroke-dashoffset', '0');
+            setTimeout(() => { head.style.opacity = '1'; }, 280); // appear once the line's nearly drawn, not before
+        });
+    }
+}
+
+// Resolves once this step's narration has finished (or a fixed pause, if
+// narration is off/fails) - the thing playStoryboard awaits between steps.
+function speakStepAndWait(text) {
+    return new Promise((resolve) => {
+        invoke('get_speech_enabled')
+            .then(async (enabled) => {
+                if (!enabled) {
+                    setTimeout(resolve, 1800);
+                    return;
+                }
+                const header = document.querySelector('#storyboard-bar .answer-header');
+                await startSpeakingIndicator(text, resolve, header);
+                invoke('speak_text', { text, voiceId: null }).catch(() => resolve());
+            })
+            .catch(() => setTimeout(resolve, 1800));
+    });
+}
+
+function resetSelection() {
+    img.style.display = 'block';
+    selectionBox.style.display = 'none';
+    selectionLabel.classList.add('hidden');
+    toolbar.classList.add('hidden');
+    currentRect = null;
+    queryInput.value = '';
+    directQueryBox.classList.add('hidden');
+    directQueryInput.value = '';
+    btnHistory.classList.add('hidden');
+}
+
+// Bottom-right shortcut into the persisted run log (history.rs/history.js) -
+// shown alongside the direct-query input, same lifecycle. Dismisses this
+// overlay first (same cleanup Escape does) rather than leaving it open
+// underneath the history window.
+btnHistory.addEventListener('click', async () => {
+    await dismissOverlay();
+    resetSelection();
+    try {
+        const historyWindow = await Window.getByLabel('history');
+        if (historyWindow) {
+            await historyWindow.show();
+            await historyWindow.setFocus();
+        }
+    } catch (e) {
+        console.error('Failed to open history window:', e);
+    }
+});
+
+container.addEventListener('mousedown', (e) => {
+    // Region-select drag only applies in the secondary (manual crop) flow.
+    if (mode !== 'region') return;
+    // If clicking on toolbar, ignore
+    if (e.target.closest('#toolbar')) return;
+
+    isDrawing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+
+    selectionBox.style.left = startX + 'px';
+    selectionBox.style.top = startY + 'px';
+    selectionBox.style.width = '0px';
+    selectionBox.style.height = '0px';
+    selectionBox.style.display = 'block';
+    toolbar.classList.add('hidden');
+    selectionLabel.classList.remove('hidden');
+});
+
+container.addEventListener('mousemove', (e) => {
+    if (!isDrawing) return;
+
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+
+    const width = Math.abs(currentX - startX);
+    const height = Math.abs(currentY - startY);
+    const left = Math.min(startX, currentX);
+    const top = Math.min(startY, currentY);
+
+    selectionBox.style.width = width + 'px';
+    selectionBox.style.height = height + 'px';
+    selectionBox.style.left = left + 'px';
+    selectionBox.style.top = top + 'px';
+
+    selectionLabel.textContent = `${Math.round(width)} × ${Math.round(height)}`;
+    selectionLabel.style.left = left + 'px';
+    selectionLabel.style.top = (top - 20) + 'px';
+});
+
+container.addEventListener('mouseup', (e) => {
+    if (!isDrawing) return;
+    isDrawing = false;
+
+    // If the user just clicked without dragging, make a default 100x100 box
+    if (selectionBox.offsetWidth <= 10 || selectionBox.offsetHeight <= 10) {
+        const size = 100;
+        selectionBox.style.width = size + 'px';
+        selectionBox.style.height = size + 'px';
+        selectionBox.style.left = (startX - size/2) + 'px';
+        selectionBox.style.top = (startY - size/2) + 'px';
+    }
+
+    toolbar.classList.remove('hidden');
+    selectionLabel.classList.add('hidden');
+
+    // Position toolbar just below the selection box
+    const boxRect = selectionBox.getBoundingClientRect();
+    toolbar.style.bottom = 'auto';
+    toolbar.style.right = 'auto';
+    toolbar.style.left = boxRect.left + 'px';
+    toolbar.style.top = (boxRect.bottom + 10) + 'px';
+
+    currentRect = {
+        x: parseInt(selectionBox.style.left),
+        y: parseInt(selectionBox.style.top),
+        width: selectionBox.offsetWidth,
+        height: selectionBox.offsetHeight
+    };
+
+    queryInput.value = '';
+    queryInput.focus();
+});
+
+queryInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !btnSubmit.disabled) {
+        e.preventDefault();
+        btnSubmit.click();
+    }
+});
+
+btnCancel.addEventListener('click', async () => {
+    const appWindow = Window.getCurrent();
+    await appWindow.hide();
+    resetSelection();
+});
+
+// Poll cap: originally 20 attempts * 1s = 20s, matching PRD §8's client-side
+// timeout for a backend that never reaches a terminal state (worker down,
+// stuck task). That was calibrated when every agent task was a single
+// Gemini call - the filesystem/GitHub/multi-step phases each add real extra
+// round trips (an MCP handshake, a second and sometimes third sequential
+// Gemini call) that can genuinely take longer than 20s, especially GitHub's
+// remote server over the network. User-reported: task succeeded (visible in
+// the worker logs) but the UI had already shown a timeout error by then.
+// 60s still catches a truly stuck/dead worker, just doesn't fire early on
+// a slower-but-healthy multi-phase task.
+// ---------------------------------------------------------------------
+// Telemetry (opt-in, anonymous) - every call routes through Rust's
+// capture_telemetry_event, which owns the enabled-check and the anonymous
+// install id. Never pass query text, task descriptions, clipboard/file
+// contents, answers, or tokens: categorical values and counts only.
+// ---------------------------------------------------------------------
+function captureTelemetry(name, properties) {
+    // Fire-and-forget on this side too - a rejected promise here must not
+    // surface in a user-facing flow.
+    invoke('capture_telemetry_event', { name, properties: properties || {} })
+        .catch((e) => console.debug('[telemetry] capture failed:', e));
+}
+
+/// Which capability a finished agent task actually exercised - enum-like,
+/// derived from the response shape rather than from any of its content.
+function capabilityUsed(response) {
+    if (response.multi_step_plan) return 'multistep';
+    if (response.proposed_action) return 'os_action';
+    return 'none';
+}
+
+/// The backend swallows Gemini/tool failures into a plain string answer
+/// instead of raising (GeminiService.*_sync, tasks.py's needs_* fallbacks),
+/// so Celery reports the task as SUCCESS even when the "answer" is really
+/// an error. Caught for real: two runs that had actually failed (a 503
+/// from Gemini) showed up in telemetry as agent_task_completed, with no
+/// agent_task_failed anywhere - the exact case this list exists to catch.
+/// Matches ONLY these exact backend-authored fallback strings, never
+/// free-text guessing against a real answer, which the model could
+/// legitimately produce and must never get misclassified as a failure.
+const BACKEND_ERROR_ANSWERS = [
+    "Gemini API key not configured.",
+    "OpenAI API key not configured.",
+    "File access isn't set up yet - set CUEPOINT_FS_ROOT_HOST in the project's .env to a real folder and restart the worker (docker compose up -d --build worker).",
+    "Something went wrong reading files for this task.",
+    "GitHub isn't connected yet - add a token in Settings.",
+    "Something went wrong checking GitHub for this task.",
+    "Web search isn't set up yet - add a Tavily API key in Settings.",
+    "Something went wrong searching the web for this task.",
+];
+function isBackendErrorAnswer(answerText) {
+    if (typeof answerText !== 'string') return false;
+    return /^Error communicating with (Gemini|OpenAI):/.test(answerText) || BACKEND_ERROR_ANSWERS.includes(answerText);
+}
+
+/// Provider + model chosen in Settings, plus the OpenAI key only when OpenAI
+/// is the provider - spread into every agent request body. On failure the
+/// fields are simply left out and the backend uses Gemini defaults.
+async function llmRequestFields() {
+    try {
+        return await invoke('get_llm_request_fields');
+    } catch (e) {
+        console.error('Failed to read model settings:', e);
+        return {};
+    }
+}
+
+/// Outcome of a plain question (not an agent: task, which reports its own
+/// events). `mode` is one of 'direct' | 'region' | 'explain' - an enum, never
+/// any text. Covers both ways a plain ask can fail: the backend swallowing a
+/// Gemini error into the answer string (a 503 shows up as the answer itself,
+/// streamed into the tooltip), and a thrown exception (network down, etc.).
+/// The HTTP status inside "Error communicating with Gemini: 503 UNAVAILABLE..."
+/// (or the same shape from OpenAI),
+/// as a number (503, 429, 403...). Just the code, never the message text: it
+/// separates "Google is overloaded" from "quota hit" from "bad API key" -
+/// i.e. whether a failure is ours to fix - without sending anything free-form.
+function upstreamStatus(answerText) {
+    const m = typeof answerText === 'string'
+        ? /^Error communicating with (?:Gemini|OpenAI): (\d{3})\b/.exec(answerText)
+        : null;
+    return m ? Number(m[1]) : null;
+}
+
+function trackQueryOutcome(mode, outcome, source = 'typed') {
+    if (outcome === 'exception') {
+        captureTelemetry('query_failed', { mode, source, reason: 'exception' });
+    } else if (isBackendErrorAnswer(outcome)) {
+        captureTelemetry('query_failed', { mode, source, reason: 'backend_error_answer', upstream_status: upstreamStatus(outcome) });
+    } else {
+        captureTelemetry('query_completed', { mode, source });
+    }
+}
+
+/// One-time opt-in prompt, shown before the first query box ever appears.
+/// Enter enables, Escape skips; either answer is remembered so this never
+/// asks twice. Fails closed and silently: if the setting can't be read or
+/// written, telemetry simply stays off.
+async function askTelemetryConsentIfNeeded() {
+    let alreadyAsked = true;
+    try {
+        alreadyAsked = await invoke('get_telemetry_prompt_shown');
+    } catch (e) {
+        console.error('[telemetry] Failed to read prompt state:', e);
+        return; // fail closed - don't prompt, don't enable
+    }
+    if (alreadyAsked) return;
+
+    const box = document.getElementById('telemetry-consent-box');
+    box.classList.remove('hidden');
+    // Same Escape-race handling as every other keypress gate in this file:
+    // disable the global Escape shortcut so only this listener can resolve.
+    await disableEscapeDismiss();
+
+    const enabled = await new Promise((resolve) => {
+        const onKey = (e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+                e.preventDefault();
+                document.removeEventListener('keydown', onKey);
+                resolve(e.key === 'Enter');
+            }
+        };
+        document.addEventListener('keydown', onKey);
+    });
+
+    box.classList.add('hidden');
+    await enableEscapeDismiss();
+
+    try {
+        await invoke('set_telemetry_enabled', { enabled });
+        await invoke('set_telemetry_prompt_shown', { shown: true });
+    } catch (e) {
+        console.error('[telemetry] Failed to persist consent choice:', e);
+    }
+}
+
+const AGENT_POLL_MAX_ATTEMPTS = 60;
+const AGENT_POLL_INTERVAL_MS = 1000;
+
+async function runAgentTask(taskDescription, source = 'typed') {
+    const sessionId = crypto.randomUUID();
+
+    let clipboardText = "";
+    try {
+        clipboardText = await invoke('read_clipboard');
+        console.log(`[agent] clipboard read: ${clipboardText.length} chars, preview="${clipboardText.slice(0, 40)}"`);
+    } catch (e) {
+        console.error("[agent] Failed to read clipboard:", e);
+    }
+
+    // Without this, agent tasks were text-only and had nothing to look at -
+    // "reply to the message on screen" fell back to clipboard content as the
+    // only available context, since it was the only thing there was.
+    // Usually a ref to the copy uploaded in the background at capture time
+    // (commands/stage.rs), otherwise the screenshot inline.
+    let screenshotFields = { screenshot_base64: "", screenshot_ref: "" };
+    try {
+        screenshotFields = await invoke('get_screenshot_for_request');
+    } catch (e) {
+        console.error("[agent] Failed to read current screenshot:", e);
+    }
+
+    // Decrypted (DPAPI) fresh per request, same as clipboard/screenshot -
+    // never persisted anywhere beyond this one request; empty string if
+    // GitHub isn't connected in Settings, not an error.
+    let githubToken = "";
+    try {
+        githubToken = await invoke('get_github_token_for_request');
+    } catch (e) {
+        console.error("[agent] Failed to read GitHub token:", e);
+    }
+
+    // BYOK - same decrypt-fresh-per-request pattern as the GitHub token.
+    // Empty if the user hasn't added a key in Settings yet; the backend
+    // falls back to its own .env key (if any) rather than erroring.
+    let geminiApiKey = "";
+    try {
+        geminiApiKey = await invoke('get_gemini_key_for_request');
+    } catch (e) {
+        console.error("[agent] Failed to read Gemini key:", e);
+    }
+    let tavilyApiKey = "";
+    try {
+        tavilyApiKey = await invoke('get_tavily_key_for_request');
+    } catch (e) {
+        console.error("[agent] Failed to read Tavily key:", e);
+    }
+    const llmFields = await llmRequestFields();
+
+    // Categorical only - never the task text itself. See telemetry.rs.
+    captureTelemetry('agent_task_started', { source });
+
+    const postTask = (fields) => fetch(`${API_BASE_URL}/api/agent/task`, {
+        method: "POST",
+        headers: API_HEADERS,
+        body: JSON.stringify({
+            task_description: taskDescription,
+            session_id: sessionId,
+            clipboard_text: clipboardText,
+            ...fields,
+            github_token: githubToken,
+            gemini_api_key: geminiApiKey,
+            tavily_api_key: tavilyApiKey,
+            ...llmFields,
+        })
+    });
+    let postRes = await postTask(screenshotFields);
+    if (postRes.status === 409 && screenshotFields.screenshot_ref) {
+        // The server no longer has the staged copy: resend inline, once.
+        const inline = await invoke('get_current_screenshot_base64').catch(() => "");
+        postRes = await postTask({ screenshot_base64: inline, screenshot_ref: "" });
+    }
+    const { task_id } = await postRes.json();
+
+    for (let attempt = 0; attempt < AGENT_POLL_MAX_ATTEMPTS; attempt++) {
+        await new Promise(r => setTimeout(r, AGENT_POLL_INTERVAL_MS));
+
+        const getRes = await fetch(`${API_BASE_URL}/api/agent/task/${task_id}`, {
+            headers: { "X-Cuepoint-Client-Key": CLIENT_KEY }
+        });
+        const statusData = await getRes.json();
+
+        if (statusData.status === "SUCCESS") {
+            const clipboardWrite = statusData.result.clipboard_write;
+            if (typeof clipboardWrite === 'string') {
+                try {
+                    await invoke('write_clipboard', { text: clipboardWrite });
+                } catch (e) {
+                    console.error("Failed to write clipboard:", e);
+                }
+            }
+            const result = {
+                answer_text: statusData.result.result,
+                pointer_target: statusData.result.pointer_target,
+                proposed_action: statusData.result.proposed_action || null,
+                multi_step_plan: statusData.result.multi_step_plan || null
+            };
+            if (isBackendErrorAnswer(result.answer_text)) {
+                captureTelemetry('agent_task_failed', { source, reason: 'backend_error_answer', upstream_status: upstreamStatus(result.answer_text) });
+            } else {
+                captureTelemetry('agent_task_completed', { source, capability: capabilityUsed(result) });
+            }
+            return result;
+        } else if (statusData.status === "FAILURE") {
+            captureTelemetry('agent_task_failed', { source, reason: 'backend_failure' });
+            throw new Error("Task failed: " + statusData.result);
+        }
+    }
+
+    captureTelemetry('agent_task_failed', { source, reason: 'timeout' });
+    throw new Error(`Agent task timed out after ${AGENT_POLL_MAX_ATTEMPTS * AGENT_POLL_INTERVAL_MS / 1000}s`);
+}
+
+/// Settings' "On-screen actions": 'off' | 'ask' | 'allow'. Fails closed to
+/// 'off' if it can't be read, so a broken settings file never lets actions
+/// run unprompted.
+async function getActionPermission() {
+    try {
+        return await invoke('get_action_permission');
+    } catch (e) {
+        console.error('Failed to read action permission:', e);
+        return 'off';
+    }
+}
+
+/// Enter/Esc wait on the overlay, used by both confirm prompts. Disables
+/// the global Escape-dismiss shortcut for its duration: left alone, an Esc
+/// here could trigger dismissOverlay() without resolving this promise,
+/// orphaning the listener, and a later unrelated Enter would then resolve
+/// it as a confirm and run the stale action for real.
+async function waitForEnterOrEscape() {
+    await disableEscapeDismiss();
+    return new Promise((resolve) => {
+        const onKey = (e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+                e.preventDefault();
+                document.removeEventListener('keydown', onKey);
+                resolve(e.key === 'Enter');
+            }
+        };
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+// Gate before any agent-proposed desktop action (type_text/open_app)
+// actually runs - shows the model's plain-language description and waits
+// for a real keypress. Window goes interactive for this (Enter/Esc via a
+// plain DOM listener), same as direct-query-box, since every other overlay
+// state is click-through and a clickable Confirm/Cancel button would have
+// the exact same "can never be clicked" problem already hit elsewhere.
+// No-op if there's no proposed action (the common case).
+async function confirmProposedActionIfAny(action) {
+    if (!action) return;
+
+    // 'off': skip silently, answer_text still shows normally.
+    const permission = await getActionPermission();
+    if (permission === 'off') return;
+
+    const appWindow = Window.getCurrent();
+    const box = document.getElementById('action-confirm-box');
+    const typeSection = document.getElementById('action-confirm-type');
+    const openSection = document.getElementById('action-confirm-open');
+    const runningPill = document.getElementById('action-running-pill');
+
+    if (action.action_type !== 'type_text' && action.action_type !== 'open_app') {
+        return; // unrecognized action type - nothing sensible to run
+    }
+
+    let target = '';
+    if (action.action_type === 'type_text') {
+        try {
+            target = await invoke('get_active_window_title');
+        } catch (e) {
+            console.error('Failed to read active window title:', e);
+        }
+    }
+
+    // 'allow' skips the prompt entirely; the running pill below still says
+    // what's happening, and Esc still dismisses.
+    if (permission === 'ask') {
+        if (action.action_type === 'type_text') {
+            document.getElementById('action-confirm-type-title').textContent = target ? `Type into ${target}` : 'Type into the focused field';
+            typeSection.classList.remove('hidden');
+            openSection.classList.add('hidden');
+        } else {
+            document.getElementById('action-confirm-open-title').textContent = `Open ${action.app_name}`;
+            openSection.classList.remove('hidden');
+            typeSection.classList.add('hidden');
+        }
+
+        await appWindow.setIgnoreCursorEvents(false);
+        await appWindow.setFocus();
+        box.classList.remove('hidden');
+
+        const confirmed = await waitForEnterOrEscape();
+
+        if (!confirmed) {
+            // Esc here cancels the action AND closes the whole overlay - same
+            // meaning Esc has everywhere else in the app, rather than skipping
+            // just the action and falling through to show the answer anyway.
+            // dismissOverlay() handles hiding action-confirm-box, restoring
+            // click-through, and disabling the escape shortcut itself, so there's
+            // nothing left to re-enable/restore here.
+            await dismissOverlay();
+            return;
+        }
+
+        await enableEscapeDismiss();
+
+        box.classList.add('hidden');
+        // Restore click-through - every other answer-display state runs this
+        // way, so the normal renderResponse() flow that follows stays consistent.
+        await appWindow.setIgnoreCursorEvents(true);
+    }
+
+    document.getElementById('action-running-text').textContent =
+        action.action_type === 'type_text' ? `Typing into ${target || 'the focused field'}…` : `Opening ${action.app_name}…`;
+    runningPill.classList.remove('hidden');
+
+    try {
+        if (action.action_type === 'type_text') {
+            await invoke('execute_type_text', { text: action.text });
+        } else if (action.action_type === 'open_app') {
+            await invoke('execute_open_app', { appName: action.app_name });
+        }
+    } catch (e) {
+        console.error('Action execution failed:', e);
+        // The window is already click-through here (set above, before
+        // execute_type_text/execute_open_app ran) - the close button would
+        // be dead, so hide it same as showOverlayError does.
+        errorClose.classList.add('hidden');
+        showError(`Action failed: ${e}`, () => errorClose.classList.remove('hidden'));
+    } finally {
+        runningPill.classList.add('hidden');
+    }
+}
+
+const MULTI_STEP_MAX_STEPS = 12;
+const MULTI_STEP_STEP_DELAY_MS = 900; // let the UI settle after an action before the next screenshot
+
+// Per-run step trace - no UI for this yet, but every decision the model makes
+// during a multi-step run (what it saw, what it chose, whether execution
+// actually succeeded) gets recorded here so a future panel (or devtools, for
+// now: window.cuepointAgentTraces) can show/debug a run after the fact.
+// Screenshots make each run non-trivial in memory, so only the most recent
+// AGENT_TRACE_MAX_RUNS are kept.
+const AGENT_TRACE_MAX_RUNS = 5;
+const agentTraceLog = [];
+window.cuepointAgentTraces = agentTraceLog;
+window.cuepointLastAgentTrace = () => agentTraceLog[agentTraceLog.length - 1] || null;
+// Persisted (image-free) history, most recent first - for console testing
+// until a real history panel exists: window.cuepointGetAgentHistory().then(console.table)
+window.cuepointGetAgentHistory = () => invoke('get_agent_history');
+window.cuepointClearAgentHistory = () => invoke('clear_agent_history');
+
+function startAgentTrace(taskDescription, plan) {
+    const trace = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        taskDescription,
+        plan: [...plan],
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        finalAnswer: null,
+        stopReason: null, // 'done' | 'max_steps' | 'aborted' | 'screenshot_error' | 'network_error'
+        steps: [],
+    };
+    agentTraceLog.push(trace);
+    if (agentTraceLog.length > AGENT_TRACE_MAX_RUNS) agentTraceLog.shift();
+    return trace;
+}
+
+// Strips screenshots and normalizes to camelCase for the Rust side - the
+// in-memory trace above keeps screenshot_base64 for live devtools debugging,
+// but persisted history doesn't need the pixels, only what was decided and
+// whether it actually ran. Keeping images out of agent_history.json is what
+// keeps that file small enough to just always persist every run.
+function traceToHistoryRecord(trace) {
+    return {
+        id: trace.id,
+        taskDescription: trace.taskDescription,
+        plan: trace.plan,
+        startedAt: trace.startedAt,
+        finishedAt: trace.finishedAt,
+        finalAnswer: trace.finalAnswer,
+        stopReason: trace.stopReason,
+        steps: trace.steps.map((s) => ({
+            index: s.index,
+            decidedAt: s.decidedAt,
+            actionType: s.action_type,
+            description: s.description ?? null,
+            point: s.point ?? null,
+            text: s.text ?? null,
+            appName: s.app_name ?? null,
+            key: s.key ?? null,
+            button: s.button ?? null,
+            double: s.double ?? null,
+            direction: s.direction ?? null,
+            amount: s.amount ?? null,
+            waitMs: s.wait_ms ?? null,
+            url: s.url ?? null,
+            ref: s.ref ?? null,
+            browserSnapshotError: s.browserSnapshotError ?? null,
+            answerText: s.answer_text ?? null,
+            executed: s.executed,
+            executionError: s.executionError ?? null,
+        })),
+    };
+}
+
+function finishAgentTrace(trace, stopReason, finalAnswer, source = 'typed') {
+    trace.finishedAt = new Date().toISOString();
+    trace.stopReason = stopReason;
+    trace.finalAnswer = finalAnswer;
+    console.log(`[agent-trace] run finished (${stopReason}, ${trace.steps.length} steps):`, trace);
+    invoke('save_agent_trace', { record: traceToHistoryRecord(trace) }).catch((e) => {
+        console.error('[agent-trace] failed to persist history:', e);
+    });
+    // Counts and an enum only - no step descriptions, text, or targets.
+    const failedSteps = trace.steps.filter((s) => s.executed === false || s.executionError).length;
+    captureTelemetry('multistep_run_completed', {
+        source,
+        step_count: trace.steps.length,
+        aborted: stopReason === 'aborted',
+        ended_reason: stopReason === 'done' && failedSteps > 0 ? 'done_with_errors' : stopReason,
+        browser_used: trace.steps.some((s) => String(s.action_type || '').startsWith('browser_')),
+    });
+
+    // No-op in release builds (Rust side checks debug_assertions).
+    invoke('save_run_debug_screenshots', {
+        screenshots: trace.steps.map((s) => s.screenshot_base64 || null),
+    }).catch((e) => {
+        console.error('[agent-trace] failed to save debug screenshots:', e);
+    });
+}
+
+// Gate before a multi-step automation sequence runs - shows the model's
+// rough plan once (not per-step, tedious past 2-3 steps) and waits for a
+// real keypress, same confirm pattern as confirmProposedActionIfAny. Once
+// confirmed, steps run automatically: fresh screenshot -> ask the backend
+// for just the next action -> execute it -> repeat, re-grounding off the
+// real screen each time rather than trusting the upfront plan's guesses.
+// No-op if there's no plan (the common case).
+async function runMultiStepLoop(taskDescription, plan, source = 'typed') {
+    if (!plan || !plan.length) return;
+
+    // A browser session (commands/browser.rs) is deliberately left open
+    // after a PAST run ends cleanly, so the user can actually see/use its
+    // result - but that means a fresh run has no local memory of it. Clear
+    // any such leftover here so a new task never silently inherits a
+    // stale, already-navigated browser from an unrelated earlier one.
+    // Best-effort: no session to close is the common case, not an error.
+    try {
+        await invoke('close_browser_session');
+    } catch (e) {
+        console.error('Failed to clear a leftover browser session:', e);
+    }
+
+    // 'off': skip silently, answer_text still shows normally.
+    const permission = await getActionPermission();
+    if (permission === 'off') return;
+
+    const appWindow = Window.getCurrent();
+    const box = document.getElementById('multistep-confirm-box');
+    const title = document.getElementById('multistep-confirm-title');
+    const planList = document.getElementById('multistep-confirm-plan');
+    const progressPill = document.getElementById('multistep-progress-pill');
+    const progressText = document.getElementById('multistep-progress-text');
+
+    // 'allow' starts immediately: the progress pill shows each step as it
+    // runs and Esc aborts at any point, same as after a confirmed plan.
+    if (permission === 'ask') {
+        title.textContent = `I'll do this in ${plan.length} steps:`;
+        planList.innerHTML = '';
+        plan.forEach((step) => {
+            const li = document.createElement('li');
+            li.textContent = step;
+            planList.appendChild(li);
+        });
+
+        await appWindow.setIgnoreCursorEvents(false);
+        await appWindow.setFocus();
+        box.classList.remove('hidden');
+
+        const confirmed = await waitForEnterOrEscape();
+
+        box.classList.add('hidden');
+
+        if (!confirmed) {
+            await dismissOverlay();
+            return;
+        }
+    }
+
+    // Running phase: window goes click-through like every other answer
+    // state, and Escape routes through the global shortcut again (a
+    // click-through window can't reliably keep DOM keyboard focus - the
+    // same reason that shortcut exists at all). dismissOverlay() bumps
+    // activeRequestId, which this loop checks between every step to abort.
+    await appWindow.setIgnoreCursorEvents(true);
+    await enableEscapeDismiss();
+    const requestId = activeRequestId;
+    const trace = startAgentTrace(taskDescription, plan);
+
+    progressPill.classList.remove('hidden');
+    const completedSteps = [];
+    let finalAnswer = null;
+    let stopReason = null;
+
+    let geminiApiKey = "";
+    try {
+        geminiApiKey = await invoke('get_gemini_key_for_request');
+    } catch (e) {
+        console.error('[multistep] Failed to read Gemini key:', e);
+    }
+    const llmFields = await llmRequestFields();
+
+    // Detects the SAME action proposed back to back, by actual parameters -
+    // not by the model's own free-text description, which gets reworded
+    // every time even when the underlying action is identical (confirmed
+    // for real: 8 consecutive retypes of the same text, each phrased
+    // differently - "Type the identified IP address...", "Typing the
+    // identified IPv4 address...", none recognized by the model itself as
+    // a repeat of the last one). On detection, one corrective re-ask is
+    // attempted (see stuck_on_repeat below) before giving up.
+    //
+    // click gets its own comparison: Gemini's point estimate jitters a few
+    // units between repeated attempts at the same visual target instead of
+    // landing on the exact same [y, x] twice - confirmed for real, a run
+    // that clicked a LinkedIn shortcut 3 times at [226,792]/[227,792]/
+    // [226,792], never byte-identical, so exact-match comparison never
+    // caught it as a repeat and the corrective re-ask never fired. Distance
+    // within CLICK_REPEAT_DISTANCE (normalized 0-1000, same space as point)
+    // counts as "the same attempt" for every other action type; anything
+    // else still needs an exact match.
+    const CLICK_REPEAT_DISTANCE = 40;
+    let lastAction = null;
+    const actionSignature = (s) => JSON.stringify({
+        t: s.action_type, text: s.text || null, point: s.point || null,
+        app: s.app_name || null, key: s.key || null, button: s.button || null,
+        double: s.double || null, direction: s.direction || null, amount: s.amount || null,
+    });
+    const sameAction = (a, b) => {
+        if (!a || !b || a.action_type !== b.action_type) return false;
+        if (a.action_type === 'click') {
+            if ((a.button || 'left') !== (b.button || 'left')) return false;
+            if (!!a.double !== !!b.double) return false;
+            if (!Array.isArray(a.point) || !Array.isArray(b.point)) return false;
+            const dy = a.point[0] - b.point[0];
+            const dx = a.point[1] - b.point[1];
+            return Math.sqrt(dy * dy + dx * dx) <= CLICK_REPEAT_DISTANCE;
+        }
+        return actionSignature(a) === actionSignature(b);
+    };
+    // browser_open/browser_close are idempotent in Rust (start_browser_
+    // session is a no-op if a session's already open) - repeating either
+    // costs nothing, so they shouldn't count toward "stuck". Confirmed for
+    // real: the model proposed browser_open twice in a row (plan text
+    // still said "Open the Brave browser", a holdover from before this
+    // action existed) and the ONLY actual problem was the repeat-guard
+    // killing an otherwise-harmless run over it.
+    const EXEMPT_FROM_REPEAT_CHECK = new Set(['done', 'error', 'browser_open', 'browser_close']);
+
+    // Local Playwright browser session (commands/browser.rs) - spawned on
+    // the user's own machine so browser steps click by accessibility ref
+    // instead of guessed pixel coordinates. Tracked here so (a) the loop
+    // knows whether to fetch a browser_snapshot before each decision, and
+    // (b) the process actually gets torn down on every exit path, not just
+    // the happy one - a Chromium instance left running after an aborted or
+    // errored task would otherwise linger silently.
+    let browserSessionActive = false;
+    async function closeBrowserIfOpen() {
+        if (!browserSessionActive) return;
+        browserSessionActive = false;
+        try {
+            await invoke('close_browser_session');
+        } catch (e) {
+            console.error('Failed to close browser session:', e);
+        }
+    }
+
+    for (let i = 0; i < MULTI_STEP_MAX_STEPS; i++) {
+        if (requestId !== activeRequestId) { await closeBrowserIfOpen(); finishAgentTrace(trace, 'aborted', null, source); return; } // aborted
+
+        progressText.textContent = `Step ${i + 1}: deciding…`;
+
+        let screenshotBase64;
+        try {
+            screenshotBase64 = await invoke('capture_fresh_screenshot');
+        } catch (e) {
+            console.error('Failed to capture screenshot for step:', e);
+            finalAnswer = 'Lost track of the screen mid-task - stopping here.';
+            stopReason = 'screenshot_error';
+            break;
+        }
+
+        // Supplements the pixel screenshot when a browser_open has already
+        // run this task - the backend folds it into the prompt as a
+        // ref-tagged element list, which is what lets browser_click/
+        // browser_type target exactly instead of guessing a coordinate.
+        // A failure here just means one step falls back to pixel clicking,
+        // not worth aborting the whole run over.
+        let browserSnapshot = null;
+        let browserSnapshotError = null;
+        if (browserSessionActive) {
+            try {
+                browserSnapshot = await invoke('browser_snapshot');
+            } catch (e) {
+                // Recorded onto the step below, not just console.error'd -
+                // this failing silently is exactly how a totally broken
+                // snapshot (a removed Playwright API) went unnoticed for
+                // the whole life of the feature: every browser run quietly
+                // degraded to pixel-guessing and the trace showed nothing
+                // wrong. A silent fallback that hides a dead feature is
+                // worse than a loud one.
+                browserSnapshotError = String(e);
+                console.error('Failed to capture browser snapshot:', e);
+            }
+        }
+
+        let step;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/agent/step`, {
+                method: "POST",
+                headers: API_HEADERS,
+                body: JSON.stringify({
+                    task_description: taskDescription,
+                    plan,
+                    completed_steps: completedSteps,
+                    screenshot_base64: screenshotBase64,
+                    gemini_api_key: geminiApiKey,
+                    ...llmFields,
+                    browser_snapshot: browserSnapshot,
+                })
+            });
+            step = await res.json();
+        } catch (e) {
+            console.error('Step decision request failed:', e);
+            finalAnswer = 'Lost connection while figuring out the next step - stopping here.';
+            stopReason = 'network_error';
+            break;
+        }
+
+        if (requestId !== activeRequestId) { await closeBrowserIfOpen(); finishAgentTrace(trace, 'aborted', null, source); return; } // aborted while awaiting
+
+        console.log(`[multistep] step ${i + 1}:`, JSON.stringify(step));
+
+        // Repeat detection + ONE active corrective re-ask, before checking
+        // action_type at all - a correction can itself resolve to done/error,
+        // so those checks run after this, against whatever `step` ends up
+        // being (original or corrected). This replaced a passive "count to
+        // 3 identical repeats then give up" - that let the model burn 2
+        // guaranteed-failing repeats before stopping, on the assumption it
+        // might self-correct on its own from the prompt's general "don't
+        // repeat" instruction. It doesn't, reliably (confirmed for real,
+        // repeatedly). Now it gets exactly one forceful, targeted nudge at
+        // the moment it's detected stuck, then stops if that doesn't help.
+        if (!EXEMPT_FROM_REPEAT_CHECK.has(step.action_type) && sameAction(step, lastAction)) {
+            progressText.textContent = 'Correcting course…';
+            let corrected = null;
+            try {
+                const res2 = await fetch(`${API_BASE_URL}/api/agent/step`, {
+                    method: "POST",
+                    headers: API_HEADERS,
+                    body: JSON.stringify({
+                        task_description: taskDescription,
+                        plan,
+                        completed_steps: completedSteps,
+                        screenshot_base64: screenshotBase64,
+                        gemini_api_key: geminiApiKey,
+                        ...llmFields,
+                        browser_snapshot: browserSnapshot,
+                        stuck_on_repeat: true,
+                    })
+                });
+                corrected = await res2.json();
+            } catch (e) {
+                console.error('Corrective re-ask failed:', e);
+            }
+
+            if (requestId !== activeRequestId) { await closeBrowserIfOpen(); finishAgentTrace(trace, 'aborted', null, source); return; }
+
+            if (corrected && corrected.action_type) {
+                if (corrected.action_type === 'done' || corrected.action_type === 'error' || !sameAction(corrected, step)) {
+                    console.log(`[multistep] step ${i + 1} corrected:`, JSON.stringify(corrected));
+                    step = corrected;
+                }
+                // else: proposed the exact same thing even after an explicit
+                // warning - genuinely stuck, falls through to the check below.
+            }
+        }
+
+        // Backend-synthesized only (agent.py's /step route) - a Gemini call
+        // failure or malformed response, never a real model decision. Was
+        // previously indistinguishable from "done" (same action_type),
+        // which showed a failed step as a green "Completed" run for real.
+        if (step.action_type === 'error') {
+            finalAnswer = step.answer_text || 'Something went wrong deciding the next step.';
+            stopReason = 'network_error';
+            trace.steps.push({
+                index: i + 1,
+                decidedAt: new Date().toISOString(),
+                action_type: 'error',
+                description: step.description || null,
+                answer_text: step.answer_text || null,
+                screenshot_base64: screenshotBase64,
+                executed: false,
+                executionError: step.answer_text || null,
+            });
+            break;
+        }
+
+        if (step.action_type === 'done') {
+            // The model occasionally emits a stray JSON-shaped string here
+            // instead of a real sentence (seen for real: answer_text that
+            // was itself another action's JSON, echoed back malformed) -
+            // showing that verbatim looks broken. Raw value still goes into
+            // the trace for debugging; only the user-facing text is cleaned.
+            const rawAnswer = typeof step.answer_text === 'string' ? step.answer_text.trim() : '';
+            const looksLikeStrayJson = rawAnswer.startsWith('{') && rawAnswer.endsWith('}');
+            finalAnswer = (rawAnswer && !looksLikeStrayJson)
+                ? rawAnswer
+                : "Done, but the model's summary came back malformed - check the result directly.";
+            stopReason = 'done';
+            trace.steps.push({
+                index: i + 1,
+                decidedAt: new Date().toISOString(),
+                action_type: 'done',
+                description: step.description || null,
+                answer_text: step.answer_text || null,
+                screenshot_base64: screenshotBase64,
+                executed: true,
+                executionError: null,
+            });
+            break;
+        }
+
+        if (!EXEMPT_FROM_REPEAT_CHECK.has(step.action_type) && sameAction(step, lastAction)) {
+            // Either the guard above didn't apply (shouldn't happen given
+            // the check that gates it) or the corrective re-ask still came
+            // back identical (or, for click, still within the same
+            // near-miss cluster) - genuinely stuck, not just transiently
+            // repeating. Stop instead of burning the rest of the budget.
+            finalAnswer = `Stuck repeating the same action ("${step.description || step.action_type}") even after a corrective retry - stopping instead of wasting the remaining steps.`;
+            stopReason = 'stuck_repeating';
+            trace.steps.push({
+                index: i + 1,
+                decidedAt: new Date().toISOString(),
+                action_type: step.action_type,
+                description: step.description || null,
+                point: step.point || null,
+                text: step.text || null,
+                app_name: step.app_name || null,
+                key: step.key || null,
+                button: step.button || null,
+                double: step.double || null,
+                direction: step.direction || null,
+                amount: step.amount || null,
+                wait_ms: step.wait_ms || null,
+                url: step.url || null,
+                ref: step.ref || null,
+                screenshot_base64: screenshotBase64,
+                executed: false,
+                executionError: 'Skipped - identical to the previous action even after a corrective retry.',
+            });
+            break;
+        }
+        lastAction = step;
+
+        progressText.textContent = step.description || `Step ${i + 1}…`;
+
+        const stepRecord = {
+            index: i + 1,
+            decidedAt: new Date().toISOString(),
+            action_type: step.action_type,
+            description: step.description || null,
+            point: step.point || null,
+            text: step.text || null,
+            app_name: step.app_name || null,
+            key: step.key || null,
+            button: step.button || null,
+            double: step.double || null,
+            direction: step.direction || null,
+            amount: step.amount || null,
+            wait_ms: step.wait_ms || null,
+            url: step.url || null,
+            ref: step.ref || null,
+            browserSnapshotError,
+            screenshot_base64: screenshotBase64,
+            executed: false,
+            executionError: null,
+        };
+        trace.steps.push(stepRecord);
+
+        try {
+            if (step.action_type === 'click' && step.point) {
+                // Gemini's native format is [y, x] normalized 0-1000 - same
+                // convention already validated in storyboard mode.
+                const yNorm = step.point[0] / 1000;
+                const xNorm = step.point[1] / 1000;
+                await invoke('execute_click', { xNorm, yNorm, button: step.button || null, double: step.double || false });
+            } else if (step.action_type === 'type_text' && step.text) {
+                // false: don't restore the pre-hotkey window's focus - this
+                // step should type into whatever the sequence itself just
+                // focused (e.g. Notepad after opening it), not yank focus
+                // back to whatever was open before the hotkey was pressed.
+                await invoke('execute_type_text', { text: step.text, restoreOriginalFocus: false });
+            } else if (step.action_type === 'open_app' && step.app_name) {
+                await invoke('execute_open_app', { appName: step.app_name });
+            } else if (step.action_type === 'key_press' && step.key) {
+                await invoke('execute_key_press', { key: step.key });
+            } else if (step.action_type === 'scroll' && step.direction) {
+                await invoke('execute_scroll', { direction: step.direction, amount: step.amount || null });
+            } else if (step.action_type === 'wait') {
+                // No Rust call - the pause itself happens below via settleMs.
+            } else if (step.action_type === 'browser_open') {
+                await invoke('start_browser_session');
+                browserSessionActive = true;
+            } else if (step.action_type === 'browser_navigate' && step.url) {
+                await invoke('browser_navigate', { url: step.url });
+            } else if (step.action_type === 'browser_click' && step.ref) {
+                await invoke('browser_click', { reference: step.ref });
+            } else if (step.action_type === 'browser_type' && step.ref) {
+                await invoke('browser_type', { reference: step.ref, text: step.text || '' });
+            } else if (step.action_type === 'browser_close') {
+                await invoke('close_browser_session');
+                browserSessionActive = false;
+            }
+            stepRecord.executed = true;
+        } catch (e) {
+            console.error('Step execution failed:', e);
+            stepRecord.executionError = String(e);
+        }
+
+        completedSteps.push(step.description || step.action_type);
+        // Launching an app is much slower to actually render than a
+        // click/type/key press - the fixed delay wasn't enough for it in
+        // testing (a fresh screenshot could still show the desktop/Start
+        // menu, mid-launch), which made the model think the open failed and
+        // repeat it. Rust's execute_open_app also grew its own internal
+        // settle time; this is on top of that, before the NEXT step's
+        // screenshot is taken. 'wait' honors the model's own requested
+        // duration (clamped 300-3000ms server-side already) instead of the
+        // default settle time.
+        const settleMs = step.action_type === 'open_app'
+            ? 2200
+            : step.action_type === 'wait'
+                ? (step.wait_ms || 1000)
+                : MULTI_STEP_STEP_DELAY_MS;
+        await new Promise((r) => setTimeout(r, settleMs));
+    }
+
+    if (requestId !== activeRequestId) { await closeBrowserIfOpen(); finishAgentTrace(trace, 'aborted', null, source); return; } // aborted during the final delay
+
+    // Deliberately NOT closing the browser here for done/max_steps/
+    // stuck_repeating/error - confirmed for real: a task whose whole point
+    // was "open a browser and show me Wikipedia" had its browser closed
+    // out from under it the instant "done" fired, destroying the actual
+    // deliverable. Only a genuine mid-run abort (the four spots above,
+    // where the user cancelled the automation itself) should force-close;
+    // every other ending leaves the window open for the user to see or
+    // keep using. A stray leftover session from a PAST run is instead
+    // cleaned up at the START of the next one (see the top of this
+    // function), so nothing leaks across unrelated tasks either.
+    progressPill.classList.add('hidden');
+
+    if (!finalAnswer) {
+        finalAnswer = `Stopped after ${MULTI_STEP_MAX_STEPS} steps without finishing - try a narrower request.`;
+        stopReason = stopReason || 'max_steps';
+    }
+    finishAgentTrace(trace, stopReason || 'max_steps', finalAnswer, source);
+
+    // No TTS narration for the multi-step summary yet - deliberate v1 scope
+    // cut, not an oversight; text-only final answer, same dismiss-timing
+    // math as a spoken-off normal answer.
+    getOrCreateTooltip();
+    document.getElementById('answer-text').textContent = finalAnswer;
+    document.getElementById('answer-caret').classList.add('hidden');
+    if (closeTimer) clearTimeout(closeTimer);
+    const wordCount = finalAnswer.split(/\s+/).length;
+    closeTimer = setTimeout(() => dismissOverlay(), Math.max(15000, (wordCount / 2.5) * 1000 + 4000));
+}
+
+btnSubmit.addEventListener('click', async () => {
+    if (!currentRect) return;
+    // Snapshot: currentRect is a shared global that Escape, a new selection,
+    // or a primary-hotkey press elsewhere can null out while we're awaiting
+    // the backend. Reading currentRect again after the await (as this used
+    // to) could hand renderResponse a null rect and throw.
+    const rect = currentRect;
+    const requestId = ++activeRequestId;
+
+    const rawQuery = queryInput.value.trim();
+    const agentMatch = rawQuery.match(/^agent:\s*(.*)$/i);
+
+    btnSubmit.disabled = true;
+    btnSubmit.innerText = agentMatch ? "Queueing..." : "Processing...";
+    btnCancel.disabled = true;
+
+    img.style.display = 'none';
+    selectionBox.style.display = 'none';
+    toolbar.classList.add('hidden');
+
+    const appWindow = Window.getCurrent();
+    await appWindow.hide();
+
+    try {
+        let response;
+        let agentTaskDescription = null;
+        if (agentMatch) {
+            agentTaskDescription = agentMatch[1] || "Analyze this UI area for agent actions";
+            response = await runAgentTask(agentTaskDescription, 'region');
+        } else {
+            captureTelemetry('region_select_used', {});
+            response = await invoke('process_crop', {
+                rect,
+                query: rawQuery || null,
+                requestId: String(requestId)
+            });
+            trackQueryOutcome('region', response.answer_text, 'region');
+        }
+
+        if (requestId !== activeRequestId) return; // superseded while we were waiting
+
+        // Show window again to render the result
+        await appWindow.setIgnoreCursorEvents(true);
+        await appWindow.show();
+        await appWindow.setFocus();
+        await enableEscapeDismiss();
+
+        if (response.multi_step_plan) {
+            await runMultiStepLoop(agentTaskDescription, response.multi_step_plan, 'region');
+            return;
+        }
+
+        await confirmProposedActionIfAny(response.proposed_action);
+        if (requestId !== activeRequestId) return; // could've been superseded during the confirm wait
+
+        renderResponse(response, rect);
+    } catch (error) {
+        if (requestId !== activeRequestId) return;
+
+        console.error("Error processing request:", error);
+        // Not resetSelection() here: that re-shows the frozen full-screen
+        // screenshot behind the toast. The next region capture resets it.
+        await showOverlayError(`${error}`);
+    } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = "Process";
+        btnCancel.disabled = false;
+    }
+});
+
+// Shared dismiss path for the answer tooltip: auto-timeout, Escape, and the
+// global-shortcut Escape all funnel through here so the window always ends
+// up hidden and non-ignoring (ready for the next hotkey press).
+async function dismissOverlay() {
+    if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+    }
+
+    // Invalidate any request still in flight - without this, a response (or
+    // stream chunk) that arrives after the user has already dismissed would
+    // still pass the requestId check (no *newer* request has started) and
+    // re-show the window with a stale answer.
+    activeRequestId++;
+
+    const tooltip = document.getElementById('answer-tooltip');
+    if (tooltip) tooltip.remove();
+    document.getElementById('storyboard-bar').classList.add('hidden');
+    document.getElementById('storyboard-hint').classList.add('hidden');
+    clearStoryboardShapes();
+    document.getElementById('action-confirm-box').classList.add('hidden');
+    document.getElementById('action-running-pill').classList.add('hidden');
+    document.getElementById('multistep-confirm-box').classList.add('hidden');
+    document.getElementById('multistep-progress-pill').classList.add('hidden');
+    voicePill.classList.add('hidden');
+    loadingIndicator.classList.add('hidden');
+    if (errorTimer) { clearTimeout(errorTimer); errorTimer = null; }
+    errorToast.classList.add('hidden');
+
+    invoke('stop_speech').catch((e) => console.error("Failed to stop speech:", e));
+    stopSpeakingIndicator();
+
+    const appWindow = Window.getCurrent();
+    await appWindow.hide();
+    await appWindow.setIgnoreCursorEvents(false);
+    await disableEscapeDismiss();
+}
+
+// Backend clamps pointer_target to [0, 1] before it's sent, but that's not a
+// hard contract on what Gemini actually returns - defend here too, since an
+// unclamped value multiplied into rect.width/height can throw the tooltip
+// thousands of px off-screen (silent, no error, just nothing visible).
+const clampUnit = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+
+function renderResponse(response, rect) {
+    // Remove any leftover marker from a previous cycle
+    const oldMarker = document.getElementById('pointer-marker');
+    if (oldMarker) oldMarker.remove();
+
+    // Calculate position
+    let targetX = rect.x + (rect.width / 2);
+    let targetY = rect.y + (rect.height / 2);
+
+    if (response.pointer_target) {
+        // x_norm and y_norm are relative to the crop!
+        targetX = rect.x + (clampUnit(response.pointer_target.x_norm) * rect.width);
+        targetY = rect.y + (clampUnit(response.pointer_target.y_norm) * rect.height);
+
+        // Render marker
+        const marker = document.createElement('div');
+        marker.id = 'pointer-marker';
+        marker.className = 'pointer-marker';
+        marker.style.left = targetX + 'px';
+        marker.style.top = targetY + 'px';
+        container.appendChild(marker);
+    }
+
+    // Reuse the tooltip the streaming listener already built up live, if any
+    // (falls back to creating one - e.g. a response with zero chunks).
+    // No close button on the bubble itself: the window runs with
+    // setIgnoreCursorEvents(true) while the answer is shown (deliberate
+    // "fully click-through" behavior so the overlay never blocks the app
+    // underneath), which means the OS drops all mouse events before they
+    // reach the webview - a close button here couldn't be clicked. Esc is
+    // the dismiss path. Position is fixed via CSS (top-anchored, centered)
+    // rather than anchored to pointer_target - anchoring next to it risked
+    // pushing the box past the viewport edge (clipped, invisible, no error)
+    // whenever the model's coordinate landed near a corner.
+    getOrCreateTooltip();
+    document.getElementById('answer-text').textContent = response.answer_text; // resync: authoritative final text
+    document.getElementById('answer-caret').classList.add('hidden');
+
+    // Word-count estimate - the real dismiss timer only when speech is
+    // disabled/fails; the instant we confirm speech IS playing (below), this
+    // gets cancelled outright rather than left running. It used to only get
+    // cancelled once narration finished, which meant it could still fire on
+    // its own short schedule while a longer message was still being spoken -
+    // killing both audio and the overlay mid-sentence. Now nothing but real
+    // narration end (or its own generous fallback ceiling, see
+    // startSpeakingIndicator) decides when a spoken answer dismisses.
+    if (closeTimer) clearTimeout(closeTimer);
+    const wordCount = response.answer_text ? response.answer_text.split(/\s+/).length : 0;
+    const displayMs = Math.max(15000, (wordCount / 2.5) * 1000 + 4000);
+    closeTimer = setTimeout(() => dismissOverlay(), displayMs);
+
+    if (response.answer_text) {
+        invoke('get_speech_enabled')
+            .then(async (enabled) => {
+                if (enabled) {
+                    // Speech is about to play - the word-count estimate above
+                    // no longer applies at all, narration owns dismiss timing
+                    // from here. Once it actually finishes (real tts-ended
+                    // event, or its own fallback ceiling), give the user a
+                    // short moment to glance at the text, then dismiss.
+                    if (closeTimer) clearTimeout(closeTimer);
+                    const header = document.querySelector('#answer-tooltip .answer-header');
+                    await startSpeakingIndicator(response.answer_text, () => {
+                        if (closeTimer) clearTimeout(closeTimer);
+                        closeTimer = setTimeout(() => dismissOverlay(), 5000);
+                    }, header);
+                    return invoke('speak_text', { text: response.answer_text, voiceId: null });
+                }
+            })
+            .catch((e) => {
+                console.error("TTS failed:", e);
+                stopSpeakingIndicator();
+            });
+    }
+
+    // Hide the selection box and toolbar so the user can see the result clearly
+    selectionBox.style.display = 'none';
+    toolbar.classList.add('hidden');
+}
+
+// Close overlay on Escape
+document.addEventListener('keydown', async (e) => {
+    if (e.key === 'Escape') {
+        await dismissOverlay();
+        resetSelection();
+    }
+});

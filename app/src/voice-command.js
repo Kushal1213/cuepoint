@@ -1,0 +1,150 @@
+// Turns a push-to-talk transcript into a query for runDirectAnalysis.
+//
+// Spoken commands can't type "agent:" or "explain:", so the mode comes from
+// a leading keyword. Speech doesn't start cleanly, though: people say "uh",
+// "hey", "okay so" first, and the transcriber sometimes turns those into
+// other words. Measured with Parakeet across US, UK and Indian English
+// voices: "um" came back as "I'm" in 8 of 13 clips, once fused with the
+// keyword itself ("Armagent"), and "ah"/"hey pointer" preceded it too. The
+// keyword word itself was transcribed correctly every time in those clips;
+// the mishear list below is a conservative cover for real voices.
+//
+// Only leading words are skipped, and only to find a keyword. A plain
+// question keeps every word it was spoken with.
+
+const FILLERS = new Set([
+    'uh', 'uhh', 'um', 'umm', 'uhm', 'erm', 'er', 'ah', 'ahh', 'oh', 'hm', 'hmm', 'mm',
+    "i'm", 'im', // "um" misheard
+    'hey', 'hi', 'hello', 'okay', 'ok', 'so', 'well', 'alright', 'right', 'now',
+    'yeah', 'yes', 'please', 'just', 'pointer', 'cuepoint', 'pointers',
+]);
+
+// Multi-word lead-ins, as normalised token sequences.
+const FILLER_PHRASES = [
+    ['can', 'you'], ['could', 'you'], ['would', 'you'], ['will', 'you'],
+    ['i', 'want', 'you', 'to'], ['go', 'ahead', 'and'], ['all', 'right'],
+];
+
+const KEYWORDS = {
+    // "aj" family: reported from real use ("agent" transcribed as "A J").
+    agent: new Set(['agent', 'agents', "agent's", 'agentic', 'ajent', 'eigent', 'agen', 'aj', 'a.j', 'a-j']),
+    explain: new Set(['explain', 'explains', 'explained', 'explaining', 'explane', 'xplain']),
+};
+
+// The keyword split in two by the transcriber.
+const SPLIT_KEYWORDS = {
+    'a gent': 'agent',
+    'a j': 'agent',
+    'ex plain': 'explain',
+    'x plain': 'explain',
+};
+
+// Mishears that are also ordinary sentence openers ("Age and gender of
+// this person?"), so they only count when a command verb follows.
+const GUARDED_SPLIT_KEYWORDS = {
+    'age and': 'agent',
+};
+const COMMAND_VERBS = new Set([
+    'open', 'close', 'type', 'write', 'save', 'search', 'find', 'go', 'click', 'press',
+    'create', 'send', 'copy', 'paste', 'delete', 'rename', 'move', 'start', 'run',
+    'launch', 'play', 'pause', 'stop', 'scroll', 'select', 'fill', 'reply', 'draft',
+    'read', 'check', 'show', 'take', 'set', 'turn', 'add', 'make', 'download',
+    'install', 'navigate', 'visit', 'sign', 'log', 'book', 'order', 'compose',
+    'summarize', 'summarise', 'look', 'switch', 'minimize', 'maximize', 'print',
+]);
+
+// A filler fused onto the front of the keyword ("Armagent").
+const FUSED = /^(?:um|uh|ah|arm|erm|im|hm+)(agent|explain)$/;
+
+// Skip at most this many leading words looking for the keyword, so a
+// keyword deep in an ordinary sentence never changes its mode.
+const MAX_LEAD_WORDS = 6;
+
+// The product's own name, as an address ("Cuepoint, open Notepad") - a
+// fallback wake word for agent mode, tried only once "agent"/"explain"
+// themselves aren't found (see cuepointWakeWord below). Not in KEYWORDS:
+// unlike "agent", it's an ordinary word ("a null pointer"), so it must
+// stay leading-only and lose to a real keyword found afterward, e.g. "hey
+// pointer, agent, open settings" still resolves via the agent keyword
+// there with a clean rest, not "pointer" swallowing "agent, open settings"
+// into the task text.
+const POINTER_FORMS = new Set(['cuepoint', 'pointer', 'pointers', "pointer's", "cuepoint's", 'point-r']);
+
+function norm(word) {
+    return word.toLowerCase().replace(/[’`]/g, "'").replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, '');
+}
+
+function keywordAt(words, i) {
+    const w = words[i];
+    for (const [mode, forms] of Object.entries(KEYWORDS)) {
+        if (forms.has(w)) return { mode, length: 1 };
+    }
+    const fused = FUSED.exec(w || '');
+    if (fused) return { mode: fused[1], length: 1 };
+    if (i + 1 < words.length) {
+        const pair = SPLIT_KEYWORDS[`${w} ${words[i + 1]}`];
+        if (pair) return { mode: pair, length: 2 };
+        const guarded = GUARDED_SPLIT_KEYWORDS[`${w} ${words[i + 1]}`];
+        if (guarded && COMMAND_VERBS.has(words[i + 2])) return { mode: guarded, length: 2 };
+    }
+    return null;
+}
+
+function fillerLength(words, i) {
+    for (const phrase of FILLER_PHRASES) {
+        if (phrase.every((p, k) => words[i + k] === p)) return phrase.length;
+    }
+    return FILLERS.has(words[i]) ? 1 : 0;
+}
+
+/// "Cuepoint"/"Pointer" as a leading address, e.g. "Hey Cuepoint, open
+/// Notepad" -> "open Notepad". Only reached when the main loop found no
+/// "agent"/"explain" keyword, so it never preempts one that follows.
+function cuepointWakeWord(original, words) {
+    let i = 0;
+    while (i < words.length && i < MAX_LEAD_WORDS) {
+        const splitCuepoint = words[i] === 'cue' && words[i + 1] === 'point';
+        if (POINTER_FORMS.has(words[i]) || splitCuepoint) {
+            const rest = original.slice(i + (splitCuepoint ? 2 : 1)).join(' ').replace(/^[\s,.:;!?-]+/, '');
+            return rest || null; // "Cuepoint" alone isn't a task
+        }
+        const skip = fillerLength(words, i);
+        if (!skip) return null;
+        i += skip;
+    }
+    return null;
+}
+
+/// { mode: 'agent' | 'explain' | null, rest } - `rest` is what follows the
+/// keyword (original casing, leading punctuation trimmed), or the whole
+/// transcript unchanged when there's no keyword.
+export function parseVoiceCommand(text) {
+    const original = (text || '').trim().split(/\s+/).filter(Boolean);
+    const words = original.map(norm);
+
+    let i = 0;
+    while (i < words.length && i < MAX_LEAD_WORDS) {
+        const kw = keywordAt(words, i);
+        if (kw) {
+            const rest = original.slice(i + kw.length).join(' ').replace(/^[\s,.:;!?-]+/, '');
+            // "agent" alone (or "agent?") isn't a task; leave it as a question.
+            if (kw.mode === 'agent' && !rest) break;
+            return { mode: kw.mode, rest };
+        }
+        const skip = fillerLength(words, i);
+        if (!skip) break;
+        i += skip;
+    }
+
+    const addressed = cuepointWakeWord(original, words);
+    if (addressed) return { mode: 'agent', rest: addressed };
+
+    return { mode: null, rest: (text || '').trim() };
+}
+
+/// The string runDirectAnalysis expects: "agent: …", "explain: …", or the
+/// question as spoken.
+export function voiceToQuery(text) {
+    const { mode, rest } = parseVoiceCommand(text);
+    return mode ? `${mode}: ${rest}` : rest;
+}

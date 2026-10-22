@@ -1,0 +1,13 @@
+.agents
+.vscode
+.claude
+implementation-tracking.md
+PRD.md
+backend/.env
+.env
+__pycache__/
+*.pyc
+app/node_modules/
+app/src-tauri/target/
+.DS_Store
+Thumbs.db

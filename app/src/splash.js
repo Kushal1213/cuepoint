@@ -22,13 +22,13 @@ async function run() {
     statusEl.style.opacity = '0';
 
     await sleep(180);
-    statusEl.textContent = 'Ready - press Ctrl+Alt+Space anytime';
+    statusEl.textContent = 'Ready. Press Ctrl+Alt+Space anytime.';
     statusEl.style.opacity = '1';
 
     const update = await updateCheck;
     let holdMs = 1800;
     if (update) {
-        updateLine.textContent = `Update available - v${update.version}`;
+        updateLine.textContent = `Version ${update.version} is available`;
         updateLine.addEventListener('click', () => {
             invoke('open_release_page', { url: update.url }).catch((e) =>
                 console.error('Failed to open release page:', e)

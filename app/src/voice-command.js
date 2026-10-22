@@ -1,6 +1,6 @@
 // Turns a push-to-talk transcript into a query for runDirectAnalysis.
 //
-// Spoken commands can't type "agent:" or "explain:", so the mode comes from
+// Spoken commands cannot type a prefix, so the mode comes from
 // a leading keyword. Speech doesn't start cleanly, though: people say "uh",
 // "hey", "okay so" first, and the transcriber sometimes turns those into
 // other words. Measured with Parakeet across US, UK and Indian English
@@ -27,8 +27,8 @@ const FILLER_PHRASES = [
 
 const KEYWORDS = {
     // "aj" family: reported from real use ("agent" transcribed as "A J").
-    agent: new Set(['agent', 'agents', "agent's", 'agentic', 'ajent', 'eigent', 'agen', 'aj', 'a.j', 'a-j']),
-    explain: new Set(['explain', 'explains', 'explained', 'explaining', 'explane', 'xplain']),
+    agent: new Set(['act', 'action', 'agent', 'agents', "agent's", 'agentic', 'ajent', 'eigent', 'agen', 'aj', 'a.j', 'a-j']),
+    explain: new Set(['guide', 'walkthrough', 'explain', 'explains', 'explained', 'explaining', 'explane', 'xplain']),
 };
 
 // The keyword split in two by the transcriber.
@@ -54,7 +54,7 @@ const COMMAND_VERBS = new Set([
 ]);
 
 // A filler fused onto the front of the keyword ("Armagent").
-const FUSED = /^(?:um|uh|ah|arm|erm|im|hm+)(agent|explain)$/;
+const FUSED = /^(?:um|uh|ah|arm|erm|im|hm+)(agent|explain|act|guide)$/;
 
 // Skip at most this many leading words looking for the keyword, so a
 // keyword deep in an ordinary sentence never changes its mode.
@@ -142,7 +142,7 @@ export function parseVoiceCommand(text) {
     return { mode: null, rest: (text || '').trim() };
 }
 
-/// The string runDirectAnalysis expects: "agent: …", "explain: …", or the
+/// The internal string runDirectAnalysis expects, or the
 /// question as spoken.
 export function voiceToQuery(text) {
     const { mode, rest } = parseVoiceCommand(text);

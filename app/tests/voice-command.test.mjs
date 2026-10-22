@@ -14,6 +14,9 @@ for (const t of ['Agent, open notepad, and type hello.','Uh, agent, open notepad
 for (const t of ['Explain how this chart works.','Uh, explain this diagram.','Um, can you explain what this code does?','Okay explain the error on screen.','Hey, explain this.','So, explain the graph','Ah, explain this diagram.','Um? Can you explain what this code does?','Uh explain this diagram.','Okay, explain the error on screen.'])
   check(t, 'explain');
 // Exact rest text
+check('Act, open notepad', 'agent', 'open notepad');
+check('Guide this chart', 'explain', 'this chart');
+check('Walkthrough this diagram', 'explain', 'this diagram');
 check('Uh, agent, open notepad', 'agent', 'open notepad');
 check('Hey Pointer, Agent, Open Settings.', 'agent', 'Open Settings.');
 check('Um, can you explain what this code does?', 'explain', 'what this code does?');

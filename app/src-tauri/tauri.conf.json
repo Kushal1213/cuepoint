@@ -48,7 +48,7 @@
         "decorations": false
       },
       {
-        "title": "Cuepoint Agent History",
+        "title": "Cuepoint Task History",
         "label": "history",
         "url": "history.html",
         "width": 460,

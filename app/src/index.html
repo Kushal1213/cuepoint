@@ -46,22 +46,22 @@
         <div class="dot-bounce">
           <span></span><span></span><span></span>
         </div>
-        <span id="loading-label">Thinking&hellip;</span>
+        <span id="loading-label">Reading the screen&hellip;</span>
       </div>
 
       <div id="voice-pill" class="voice-pill hidden">
         <div class="voice-meter" id="voice-meter">
           <span></span><span></span><span></span><span></span><span></span>
         </div>
-        <span id="voice-mode" class="voice-mode hidden">Agent</span>
+        <span id="voice-mode" class="voice-mode hidden">Act</span>
         <span id="voice-text" class="voice-text">Listening&hellip;</span>
         <span class="voice-hint">Release to send</span>
       </div>
 
       <div id="direct-query-box" class="direct-query-box hidden">
-        <input id="direct-query-input" class="query-input direct-query-input" type="text" placeholder="What do you want to know? (or &quot;agent: &lt;task&gt;&quot;, &quot;explain: &lt;topic&gt;&quot;)" autocomplete="off" />
-        <div class="query-hint">Enter to send &middot; Esc to cancel</div>
-        <button id="btn-history" class="btn-history" title="Agent history">
+        <input id="direct-query-input" class="query-input direct-query-input" type="text" placeholder="Ask about this screen. Try &quot;guide:&quot; or &quot;act:&quot;" autocomplete="off" />
+        <div class="query-hint">Enter to ask. Esc to close.</div>
+        <button id="btn-history" class="btn-history" title="Task history">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 4.6V8L10.2 9.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg>
         </button>
       </div>
@@ -69,8 +69,8 @@
       <div id="toolbar" class="toolbar hidden">
         <button id="btn-cancel" class="toolbar-cancel">Cancel</button>
         <div class="toolbar-divider"></div>
-        <input id="query-input" class="query-input toolbar-input" type="text" placeholder="Ask about this region&hellip; (or &quot;agent: &lt;task&gt;&quot;)" autocomplete="off" />
-        <button id="btn-submit" class="btn btn-primary">Process</button>
+        <input id="query-input" class="query-input toolbar-input" type="text" placeholder="Ask about this selection" autocomplete="off" />
+        <button id="btn-submit" class="btn btn-primary">Ask</button>
       </div>
 
       <div id="error-toast" class="error-toast hidden">
@@ -92,12 +92,12 @@
             <div class="action-confirm-dot"></div>
             <div class="action-confirm-ring"></div>
           </div>
-          <div class="action-confirm-eyebrow">Action requested</div>
+          <div class="action-confirm-eyebrow">Review action</div>
         </div>
 
         <div id="action-confirm-type" class="hidden">
           <div id="action-confirm-type-title" class="action-confirm-title"></div>
-          <div class="action-confirm-subtitle">Will be typed into the focused field</div>
+          <div class="action-confirm-subtitle">Cuepoint will type this into the active field.</div>
         </div>
 
         <div id="action-confirm-open" class="hidden">
@@ -106,7 +106,7 @@
 
         <div class="action-confirm-footer">
           <span class="action-confirm-key">Enter</span>
-          <span class="action-confirm-key-label">to confirm</span>
+          <span class="action-confirm-key-label">to allow</span>
           <span class="action-confirm-dot-sep"></span>
           <span class="action-confirm-key">Esc</span>
           <span class="action-confirm-key-label">to cancel</span>
@@ -130,13 +130,13 @@
             <div class="action-confirm-dot"></div>
             <div class="action-confirm-ring"></div>
           </div>
-          <div class="action-confirm-eyebrow">Multi-step action requested</div>
+          <div class="action-confirm-eyebrow">Review task plan</div>
         </div>
         <div id="multistep-confirm-title" class="action-confirm-title"></div>
         <ol id="multistep-confirm-plan" class="multistep-plan-list"></ol>
         <div class="action-confirm-footer">
           <span class="action-confirm-key">Enter</span>
-          <span class="action-confirm-key-label">to run</span>
+          <span class="action-confirm-key-label">to start</span>
           <span class="action-confirm-dot-sep"></span>
           <span class="action-confirm-key">Esc</span>
           <span class="action-confirm-key-label">to cancel</span>
@@ -152,12 +152,12 @@
             <div class="action-confirm-dot"></div>
             <div class="action-confirm-ring"></div>
           </div>
-          <div class="action-confirm-eyebrow">Anonymous usage data</div>
+          <div class="action-confirm-eyebrow">Optional diagnostics</div>
         </div>
-        <div class="action-confirm-title">Help improve Cuepoint by sharing anonymous usage data?</div>
+        <div class="action-confirm-title">Share anonymous diagnostics?</div>
         <div class="action-confirm-subtitle">
-          No screenshots, queries, file contents, or tokens are ever sent. Just feature usage
-          and crash or error events. You can change this any time in Settings.
+          Sends feature use and error events only. Never includes screenshots, questions, files,
+          keys, or tokens. Change this any time in Settings.
         </div>
         <div class="action-confirm-footer">
           <span class="action-confirm-key">Enter</span>

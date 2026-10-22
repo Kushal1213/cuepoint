@@ -3,9 +3,9 @@
 
   # Cuepoint
 
-  ### Ask your screen anything.
+  ### Point. Ask. Act.
 
-  *A Windows overlay that sees what's on your screen, answers in place, and can act on your behalf - with your permission, every time.*
+  *Screen-aware help that answers in place, guides you visually, and completes tasks under your control.*
 
   [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
   [![Platform](https://img.shields.io/badge/platform-Windows-0078D6)](https://github.com/Kushal1213/cuepoint/releases/latest)
@@ -24,26 +24,26 @@
 
 ---
 
-## What it does
+## What Cuepoint does
 
-Press `Ctrl+Alt+Space` anywhere on Windows. Cuepoint captures your screen, marks exactly where your cursor is, and answers whatever you type - in place, with a pointer to what it's talking about. Ask `agent: <task>` and it can act for you: type into a focused field, open an app, click through a multi-step task across windows and a real browser. By default it shows what it's about to do and waits for Enter; Settings → On-screen actions can switch that to "Always allow" (no prompt, Esc still stops it) or "Off".
+Press `Ctrl+Alt+Space` anywhere on Windows. Cuepoint reads the current screen and keeps the answer next to the detail that matters.
 
-- **Direct Q&A** - hotkey, ask, get an answer anchored to a point on screen. No region-select step required.
-- **Push-to-talk voice** - hold `Ctrl+Win`, speak, let go. Speech is transcribed on-device (NVIDIA Parakeet, one-time download) while you're still talking, so the question is sent the instant you release. Audio never leaves your machine.
-- **`explain: <topic>`** - a narrated, drawn-on-screen walkthrough instead of a wall of text.
-- **`agent: <task>`** - one confirmed action (type a reply, open an app) or a full autonomous multi-step run, with a live step trace and a History window to review past runs.
-- **Browser automation** - a local Playwright-driven browser for tasks that need one, clicking by accessibility role/name instead of guessed pixel coordinates.
-- **Tool-using agent** - reads your GitHub repos/issues/PRs (read-only), searches the live web (Tavily), and reads local files including PDFs, all opt-in and configured per-user.
-- **Narration** - offline, local Windows text-to-speech; no cloud call, no extra cost.
-- **Session memory** - a short-lived, per-app conversation history so follow-up questions have context.
+- **Ask** - type a question with no prefix for a focused answer grounded in the current screen.
+- **Guide** - start with `guide:` for a narrated walkthrough with points, boxes, and arrows drawn in place.
+- **Act** - start with `act:` to type, open apps, search connected sources, or complete a multi-step browser task.
+- **Speak** - hold `Ctrl+Win`, talk, and release. Choose on-device transcription or OpenAI under your own key.
+- **Select** - press `Ctrl+Alt+Shift+Space` and draw around one region when the whole screen is too broad.
+- **Review** - inspect the latest 50 Act runs in local Task History. Screenshots are never stored there.
+
+The earlier `explain:` and `agent:` prefixes remain available as compatibility aliases.
 
 ## Bring your own key
 
-Cuepoint doesn't run on a shared, metered backend. Connect a [Gemini](https://aistudio.google.com) key, an [OpenAI](https://platform.openai.com/api-keys) key, or both, in Settings - every request runs on your own key, nothing shared. Pick any model either provider gives you: the model list is fetched live from your key (filtered to whatever can actually read a screenshot), plus a free-text box for any model ID at all. Switch providers or models anytime; every feature works identically on either one.
+Cuepoint does not use a shared model account. Connect a [Gemini](https://aistudio.google.com) key, an [OpenAI](https://platform.openai.com/api-keys) key, or both. The model list is loaded from your key and filtered for screenshot support. You can also enter a model ID directly.
 
 ## Install
 
-Download the latest Windows installer from **[Releases](https://github.com/Kushal1213/cuepoint/releases/latest)**, run it, and connect an API key in Settings - see the **[setup guide](https://kushal1213.github.io/cuepoint/setup.html)** for the two-minute walkthrough. The installer talks to Cuepoint's hosted backend by default; nothing else to run.
+Download the latest Windows installer from **[Releases](https://github.com/Kushal1213/cuepoint/releases/latest)**, run it, and connect a model key in Settings. The **[setup guide](https://kushal1213.github.io/cuepoint/setup.html)** covers modes, voice, permissions, and optional connections.
 
 Requires 64-bit Windows 10 (1903 or later) or Windows 11, plus the Microsoft Visual C++ Redistributable, which most PCs already have. If Cuepoint won't start and mentions a missing `MSVCP140.dll` or `VCRUNTIME140.dll`, install the [x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) and try again.
 
@@ -77,9 +77,9 @@ By default the client build targets `http://localhost:8000`. For a production bu
 
 The backend is a relay, not a store: screenshots, queries and answers pass through per request and aren't retained. See [Privacy](https://kushal1213.github.io/cuepoint/privacy.html) for exactly what's kept, for how long, and why.
 
-## Privacy & telemetry
+## Privacy and diagnostics
 
-Usage telemetry is **opt-in, off by default**, asked once. It's anonymous (a random install ID, no account) and never includes screenshots, queries, file contents, answers, or tokens - only which features get used and whether a request failed. Full details: [privacy page](https://kushal1213.github.io/cuepoint/privacy.html).
+Diagnostics are **optional and off by default**. They use a random installation ID and never include screenshots, questions, task text, clipboard content, file content, answers, keys, or tokens. See the [privacy page](https://kushal1213.github.io/cuepoint/privacy.html) for the full data path.
 
 ## Contributing
 

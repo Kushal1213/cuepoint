@@ -220,7 +220,7 @@ function render() {
     runsList.style.display = hasRuns ? '' : 'none';
     runsList.innerHTML = hasRuns ? state.runs.map(renderRun).join('') : '';
 
-    footerCount.textContent = `${state.runs.length} ${state.runs.length === 1 ? 'run logged' : 'runs logged'}`;
+    footerCount.textContent = `${state.runs.length} ${state.runs.length === 1 ? 'task saved' : 'tasks saved'}`;
     btnClearHistory.style.display = hasRuns ? '' : 'none';
 
     if (state.confirmingClear) {
@@ -259,7 +259,7 @@ btnConfirmClear.addEventListener('click', async () => {
     try {
         await invoke('clear_agent_history');
     } catch (e) {
-        console.error('Failed to clear agent history:', e);
+        console.error('Failed to clear task history:', e);
     }
     state.runs = [];
     state.expandedId = null;
@@ -271,7 +271,7 @@ async function loadHistory() {
     try {
         state.runs = await invoke('get_agent_history');
     } catch (e) {
-        console.error('Failed to load agent history:', e);
+        console.error('Failed to load task history:', e);
         state.runs = [];
     }
     render();

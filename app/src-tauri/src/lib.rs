@@ -408,7 +408,7 @@ pub fn run() {
             use tauri::tray::TrayIconBuilder;
 
             let settings_item = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
-            let history_item = MenuItem::with_id(app, "history", "Agent History...", true, None::<&str>)?;
+            let history_item = MenuItem::with_id(app, "history", "Task History...", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Cuepoint", true, None::<&str>)?;
             let tray_menu = Menu::with_items(app, &[&settings_item, &history_item, &quit_item])?;
 

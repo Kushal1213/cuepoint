@@ -301,7 +301,7 @@ function showVoiceMode(text) {
     const { mode } = parseVoiceCommand(text);
     voiceMode.classList.toggle('hidden', !mode);
     voiceMode.classList.toggle('explain', mode === 'explain');
-    if (mode) voiceMode.textContent = mode === 'agent' ? 'Agent' : 'Explain';
+    if (mode) voiceMode.textContent = mode === 'agent' ? 'Act' : 'Guide';
 }
 
 /// Coarse buckets only; the transcript itself is never sent.
@@ -408,10 +408,10 @@ async function runDirectAnalysis(queryText, source = 'typed') {
     const requestId = ++activeRequestId;
     const appWindow = Window.getCurrent();
 
-    const agentMatch = queryText.trim().match(/^agent:\s*(.*)$/i);
-    const explainMatch = queryText.trim().match(/^explain:\s*(.*)$/i);
+    const agentMatch = queryText.trim().match(/^(?:act|agent):\s*(.*)$/i);
+    const explainMatch = queryText.trim().match(/^(?:guide|explain):\s*(.*)$/i);
 
-    loadingLabel.textContent = agentMatch ? 'Queueing…' : (explainMatch ? 'Preparing…' : 'Thinking…');
+    loadingLabel.textContent = agentMatch ? 'Planning the task…' : (explainMatch ? 'Building the walkthrough…' : 'Reading the screen…');
     loadingIndicator.classList.remove('hidden');
     await appWindow.setIgnoreCursorEvents(true);
     await enableEscapeDismiss();
@@ -435,7 +435,7 @@ async function runDirectAnalysis(queryText, source = 'typed') {
             return;
         }
 
-        const agentTaskDescription = agentMatch ? (agentMatch[1] || "Analyze this for agent actions") : null;
+        const agentTaskDescription = agentMatch ? (agentMatch[1] || "Review this screen and suggest the next action") : null;
         // Fired here, when a question is actually sent - not on the hotkey
         // press, which only opens the overlay (it used to fire from Rust at
         // capture time, so it counted overlay opens, including cancelled
@@ -1029,7 +1029,7 @@ async function runAgentTask(taskDescription, source = 'typed') {
     }
 
     captureTelemetry('agent_task_failed', { source, reason: 'timeout' });
-    throw new Error(`Agent task timed out after ${AGENT_POLL_MAX_ATTEMPTS * AGENT_POLL_INTERVAL_MS / 1000}s`);
+    throw new Error(`The task stopped after ${AGENT_POLL_MAX_ATTEMPTS * AGENT_POLL_INTERVAL_MS / 1000} seconds without a result.`);
 }
 
 /// Settings' "On-screen actions": 'off' | 'ask' | 'allow'. Fails closed to
@@ -1100,7 +1100,7 @@ async function confirmProposedActionIfAny(action) {
     // what's happening, and Esc still dismisses.
     if (permission === 'ask') {
         if (action.action_type === 'type_text') {
-            document.getElementById('action-confirm-type-title').textContent = target ? `Type into ${target}` : 'Type into the focused field';
+            document.getElementById('action-confirm-type-title').textContent = target ? `Type into ${target}` : 'Type into the active field';
             typeSection.classList.remove('hidden');
             openSection.classList.add('hidden');
         } else {
@@ -1290,7 +1290,7 @@ async function runMultiStepLoop(taskDescription, plan, source = 'typed') {
     // 'allow' starts immediately: the progress pill shows each step as it
     // runs and Esc aborts at any point, same as after a confirmed plan.
     if (permission === 'ask') {
-        title.textContent = `I'll do this in ${plan.length} steps:`;
+        title.textContent = `${plan.length}-step plan`;
         planList.innerHTML = '';
         plan.forEach((step) => {
             const li = document.createElement('li');
@@ -1402,7 +1402,7 @@ async function runMultiStepLoop(taskDescription, plan, source = 'typed') {
     for (let i = 0; i < MULTI_STEP_MAX_STEPS; i++) {
         if (requestId !== activeRequestId) { await closeBrowserIfOpen(); finishAgentTrace(trace, 'aborted', null, source); return; } // aborted
 
-        progressText.textContent = `Step ${i + 1}: deciding…`;
+        progressText.textContent = `Step ${i + 1}: checking the screen…`;
 
         let screenshotBase64;
         try {
@@ -1476,7 +1476,7 @@ async function runMultiStepLoop(taskDescription, plan, source = 'typed') {
         // repeatedly). Now it gets exactly one forceful, targeted nudge at
         // the moment it's detected stuck, then stops if that doesn't help.
         if (!EXEMPT_FROM_REPEAT_CHECK.has(step.action_type) && sameAction(step, lastAction)) {
-            progressText.textContent = 'Correcting course…';
+            progressText.textContent = 'Updating the plan…';
             let corrected = null;
             try {
                 const res2 = await fetch(`${API_BASE_URL}/api/agent/step`, {
@@ -1711,10 +1711,10 @@ btnSubmit.addEventListener('click', async () => {
     const requestId = ++activeRequestId;
 
     const rawQuery = queryInput.value.trim();
-    const agentMatch = rawQuery.match(/^agent:\s*(.*)$/i);
+    const agentMatch = rawQuery.match(/^(?:act|agent):\s*(.*)$/i);
 
     btnSubmit.disabled = true;
-    btnSubmit.innerText = agentMatch ? "Queueing..." : "Processing...";
+    btnSubmit.innerText = agentMatch ? "Planning..." : "Reading...";
     btnCancel.disabled = true;
 
     img.style.display = 'none';
@@ -1728,7 +1728,7 @@ btnSubmit.addEventListener('click', async () => {
         let response;
         let agentTaskDescription = null;
         if (agentMatch) {
-            agentTaskDescription = agentMatch[1] || "Analyze this UI area for agent actions";
+            agentTaskDescription = agentMatch[1] || "Review this selection and suggest the next action";
             response = await runAgentTask(agentTaskDescription, 'region');
         } else {
             captureTelemetry('region_select_used', {});

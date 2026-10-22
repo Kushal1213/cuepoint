@@ -76,7 +76,7 @@ fn load_history(app: &AppHandle) -> Vec<AgentTraceRecord> {
 fn save_history(app: &AppHandle, records: &[AgentTraceRecord]) -> Result<(), String> {
     let path = history_path(app)?;
     let json = serde_json::to_string_pretty(records).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| format!("Failed to write agent history: {}", e))
+    fs::write(path, json).map_err(|e| format!("Failed to write task history: {}", e))
 }
 
 /// Appends one finished run. Called once per multi-step run, right after

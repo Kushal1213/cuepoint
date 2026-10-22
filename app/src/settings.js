@@ -193,13 +193,13 @@ function renderModel() {
 
     const name = PROVIDER_NAMES[provider];
     if (provider === 'openai' && !state.openaiConnected) {
-        modelHint.textContent = 'Connect an OpenAI key below to use OpenAI models. Until then, requests will fail with a missing key message.';
+        modelHint.textContent = 'Connect an OpenAI key below before choosing an OpenAI model.';
     } else if (!list) {
         modelHint.textContent = 'Loading models…';
     } else if (list.live) {
-        modelHint.textContent = `Every ${name} model your key can use with screenshots.`;
+        modelHint.textContent = `${name} models available to your key that support screenshots.`;
     } else {
-        modelHint.textContent = `Suggested ${name} models. Connect your own ${name} key below to list every model it can use.`;
+        modelHint.textContent = `Suggested ${name} models. Connect a key to load the full compatible list.`;
     }
 }
 
@@ -390,8 +390,8 @@ const sttButtons = document.querySelectorAll('#stt-picker button');
 const voiceModelRow = document.getElementById('voice-model-row');
 const voiceHint = document.getElementById('voice-hint');
 const VOICE_HINTS = {
-    local: 'Hold Ctrl + Win and speak, then let go to send. Speech is turned into text on this computer: your voice is never uploaded. Say "agent" or "explain" first to use those modes.',
-    openai: 'Hold Ctrl + Win and speak, then let go to send. Your voice is sent to OpenAI under your own key to be turned into text (billed to your OpenAI account). No download needed. Say "agent" or "explain" first to use those modes.',
+    local: 'Hold Ctrl + Win, speak, then release. Your voice stays on this computer. Start with "act" or "guide" to switch modes.',
+    openai: 'Hold Ctrl + Win, speak, then release. OpenAI transcribes the audio with your key and bills your account. Start with "act" or "guide" to switch modes.',
 };
 
 const voiceState = {

@@ -458,34 +458,34 @@
       <div id="body">
       <div id="content">
         <div class="toggle-row">
-          <div class="toggle-title">Read answers aloud</div>
+          <div class="toggle-title">Speak answers</div>
           <div id="toggle-track">
             <div id="toggle-knob"></div>
           </div>
         </div>
-        <div class="toggle-hint">Controls whether Cuepoint speaks its answers out loud as they arrive.</div>
+        <div class="toggle-hint">Read each answer aloud as it arrives.</div>
 
         <div class="divider"></div>
 
-        <div class="section-label">On-screen actions</div>
+        <div class="section-label">Action permission</div>
         <div class="segmented" id="permission-picker">
           <button data-permission="off">Off</button>
-          <button data-permission="ask">Always ask</button>
-          <button data-permission="allow">Always allow</button>
+          <button data-permission="ask">Review each action</button>
+          <button data-permission="allow">Run automatically</button>
         </div>
         <div class="toggle-hint" id="permission-hint"></div>
 
         <div class="divider"></div>
 
         <div class="toggle-row">
-          <div class="toggle-title">Voice (hold Ctrl + Win)</div>
+          <div class="toggle-title">Voice shortcut</div>
           <div id="voice-toggle-track">
             <div id="voice-toggle-knob"></div>
           </div>
         </div>
         <div class="segmented" id="stt-picker" style="margin-top:10px;">
-          <button data-engine="local">On this computer</button>
-          <button data-engine="openai">My OpenAI key</button>
+          <button data-engine="local">On-device</button>
+          <button data-engine="openai">OpenAI</button>
         </div>
         <div id="voice-model-row" class="voice-model-row">
           <div id="voice-model-status" class="voice-model-status"></div>
@@ -497,17 +497,17 @@
         <div class="divider"></div>
 
         <div class="toggle-row">
-          <div class="toggle-title">Share anonymous usage data</div>
+          <div class="toggle-title">Share anonymous diagnostics</div>
           <div id="telemetry-toggle-track">
             <div id="telemetry-toggle-knob"></div>
           </div>
         </div>
-        <div class="toggle-hint">Sends which features get used and when something errors, nothing else. No screenshots, queries, file contents, or tokens ever leave your machine. Off by default.</div>
+        <div class="toggle-hint">Sends feature use and error events only. Never includes screenshots, questions, files, keys, or tokens. Off by default.</div>
 
         <div class="divider"></div>
 
         <div id="voice-section">
-          <div class="section-label">Narration voice</div>
+          <div class="section-label">Spoken voice</div>
           <div id="voice-picker-wrap">
             <div id="voice-trigger">
               <div class="label" id="voice-trigger-label">Loading voices…</div>
@@ -545,7 +545,7 @@
             <input id="gemini-key-input" class="key-input" type="password" placeholder="AIza… (from aistudio.google.com)" autocomplete="off" />
             <button id="btn-gemini-connect" class="btn-key-connect">Connect</button>
           </div>
-          <div class="toggle-hint">Used when the model provider is Gemini. Every request uses your own free Gemini API key, not a shared one. Stored encrypted on this device (DPAPI), never written anywhere else.</div>
+          <div class="toggle-hint">Used for Gemini requests. Stored with Windows encryption (DPAPI) on this device and never written anywhere else.</div>
         </div>
 
         <div class="divider"></div>
@@ -560,13 +560,13 @@
             <input id="openai-key-input" class="key-input" type="password" placeholder="sk-… (from platform.openai.com)" autocomplete="off" />
             <button id="btn-openai-connect" class="btn-key-connect">Connect</button>
           </div>
-          <div class="toggle-hint">Needed only when the model provider is OpenAI. Billed to your own OpenAI account. Stored encrypted on this device (DPAPI), never written anywhere else.</div>
+          <div class="toggle-hint">Used for OpenAI requests and billed to your OpenAI account. Stored with Windows encryption (DPAPI) on this device.</div>
         </div>
 
         <div class="divider"></div>
 
         <div id="tavily-section">
-          <div class="section-label">Tavily API key (optional)</div>
+          <div class="section-label">Web search key (optional)</div>
           <div id="tavily-connected-row" class="connected-row hidden">
             <div class="connected-label"><span class="dot"></span>Connected</div>
             <button id="btn-tavily-disconnect" class="btn-key-disconnect">Disconnect</button>
@@ -575,13 +575,13 @@
             <input id="tavily-key-input" class="key-input" type="password" placeholder="tvly-… (optional)" autocomplete="off" />
             <button id="btn-tavily-connect" class="btn-key-connect">Connect</button>
           </div>
-          <div class="toggle-hint">Enables live web search for agent tasks (agent: what's the latest...). Skip this if you don't need it.</div>
+          <div class="toggle-hint">Connect Tavily when a task needs current information from the web.</div>
         </div>
 
         <div class="divider"></div>
 
         <div id="github-section">
-          <div class="section-label">GitHub connection</div>
+          <div class="section-label">GitHub access (optional)</div>
           <div id="github-connected-row" class="connected-row hidden">
             <div class="connected-label"><span class="dot"></span>Connected</div>
             <button id="btn-github-disconnect" class="btn-key-disconnect">Disconnect</button>
@@ -590,7 +590,7 @@
             <input id="github-token-input" class="key-input" type="password" placeholder="github_pat_… (fine-grained, read-only)" autocomplete="off" />
             <button id="btn-github-connect" class="btn-key-connect">Connect</button>
           </div>
-          <div class="toggle-hint">Lets the agent read repos, issues, pull requests, and commits on your behalf. Read-only: a fine-grained token with read access is enough. Stored encrypted on this device (DPAPI), never written anywhere else.</div>
+          <div class="toggle-hint">Lets Cuepoint read repositories, issues, pull requests, and commits. Use a fine-grained, read-only token. It stays encrypted on this device.</div>
         </div>
       </div>
       <div id="scroll-fade"></div>

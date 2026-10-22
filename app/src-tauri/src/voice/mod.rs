@@ -489,7 +489,7 @@ mod keyword_probe {
         use windows::Storage::Streams::DataReader;
 
         let dir = PathBuf::from(std::env::var("LOCALAPPDATA").unwrap())
-            .join("dev.cuepoint.app").join("models").join(model::MODEL_DIR_NAME);
+            .join("io.github.kushal1213.cuepoint").join("models").join(model::MODEL_DIR_NAME);
         let mut m = ParakeetModel::load(&dir, &Quantization::Int8).unwrap();
         let mut run = |label: &str, audio: &[f32]| {
             let t = m.transcribe_with(audio, &ParakeetParams::default()).unwrap().text;

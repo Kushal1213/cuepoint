@@ -224,7 +224,7 @@ mod tests {
         use transcribe_rs::onnx::Quantization;
 
         let dir = PathBuf::from(std::env::var("LOCALAPPDATA").unwrap())
-            .join("dev.cuepoint.app")
+            .join("io.github.kushal1213.cuepoint")
             .join("models")
             .join(MODEL_DIR_NAME);
         let rt = tokio::runtime::Runtime::new().unwrap();

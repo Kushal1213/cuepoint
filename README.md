@@ -13,7 +13,7 @@
   [![Backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20Celery-009688)](backend)
   [![BYOK](https://img.shields.io/badge/AI-Gemini%20%7C%20OpenAI%20(BYOK)-8b5cf6)](#bring-your-own-key)
 
-  [Website](https://www.cuepoint.duckdns.org) · [Setup Guide](https://www.cuepoint.duckdns.org/setup.html) · [Privacy](https://www.cuepoint.duckdns.org/privacy.html) · [Releases](https://github.com/Kushal1213/cuepoint/releases) · [Issues](https://github.com/Kushal1213/cuepoint/issues)
+  [Website](https://kushal1213.github.io/cuepoint/) · [Setup Guide](https://kushal1213.github.io/cuepoint/setup.html) · [Privacy](https://kushal1213.github.io/cuepoint/privacy.html) · [Releases](https://github.com/Kushal1213/cuepoint/releases) · [Issues](https://github.com/Kushal1213/cuepoint/issues)
 </div>
 
 <p align="center">
@@ -41,7 +41,7 @@ Cuepoint doesn't run on a shared, metered backend. Connect a [Gemini](https://ai
 
 ## Install
 
-Download the latest Windows installer from **[Releases](https://github.com/Kushal1213/cuepoint/releases/latest)**, run it, and connect an API key in Settings - see the **[setup guide](https://www.cuepoint.duckdns.org/setup.html)** for the two-minute walkthrough. The installer talks to Cuepoint's hosted backend by default; nothing else to run.
+Download the latest Windows installer from **[Releases](https://github.com/Kushal1213/cuepoint/releases/latest)**, run it, and connect an API key in Settings - see the **[setup guide](https://kushal1213.github.io/cuepoint/setup.html)** for the two-minute walkthrough. The installer talks to Cuepoint's hosted backend by default; nothing else to run.
 
 Requires 64-bit Windows 10 (1903 or later) or Windows 11, plus the Microsoft Visual C++ Redistributable, which most PCs already have. If Cuepoint won't start and mentions a missing `MSVCP140.dll` or `VCRUNTIME140.dll`, install the [x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) and try again.
 
@@ -73,11 +73,11 @@ By default the client build targets `http://localhost:8000`. For a production bu
   <img src=".github/assets/architecture.png" alt="Cuepoint architecture: the Tauri app on your PC sends a screenshot and question to a FastAPI relay, which calls Gemini or OpenAI with your own key and returns an answer plus coordinates" width="800">
 </p>
 
-The backend is a relay, not a store: screenshots, queries and answers pass through per request and aren't retained. See [Privacy](https://www.cuepoint.duckdns.org/privacy.html) for exactly what's kept, for how long, and why.
+The backend is a relay, not a store: screenshots, queries and answers pass through per request and aren't retained. See [Privacy](https://kushal1213.github.io/cuepoint/privacy.html) for exactly what's kept, for how long, and why.
 
 ## Privacy & telemetry
 
-Usage telemetry is **opt-in, off by default**, asked once. It's anonymous (a random install ID, no account) and never includes screenshots, queries, file contents, answers, or tokens - only which features get used and whether a request failed. Full details: [privacy page](https://www.cuepoint.duckdns.org/privacy.html).
+Usage telemetry is **opt-in, off by default**, asked once. It's anonymous (a random install ID, no account) and never includes screenshots, queries, file contents, answers, or tokens - only which features get used and whether a request failed. Full details: [privacy page](https://kushal1213.github.io/cuepoint/privacy.html).
 
 ## Contributing
 

@@ -43,7 +43,7 @@ Cuepoint does not use a shared model account. Connect a [Gemini](https://aistudi
 
 ## Install
 
-Download the latest Windows installer from **[Releases](https://github.com/Kushal1213/cuepoint/releases/latest)**, run it, and connect a model key in Settings. The **[setup guide](https://kushal1213.github.io/cuepoint/setup.html)** covers modes, voice, permissions, and optional connections.
+Download the **[Cuepoint 0.3.0 Windows installer](https://github.com/Kushal1213/cuepoint/releases/download/v0.3.0/Cuepoint_0.3.0_x64-setup.exe)**. This first package is configured for the local backend at `http://localhost:8000`, so start the backend with `docker compose up -d` before opening the app. The **[setup guide](https://kushal1213.github.io/cuepoint/setup.html)** covers modes, voice, permissions, and optional connections.
 
 Requires 64-bit Windows 10 (1903 or later) or Windows 11, plus the Microsoft Visual C++ Redistributable, which most PCs already have. If Cuepoint won't start and mentions a missing `MSVCP140.dll` or `VCRUNTIME140.dll`, install the [x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) and try again.
 

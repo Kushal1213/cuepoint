@@ -1,10 +1,9 @@
 import json
 import time
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import analyze, agent
-from app.security import verify_client_key
 
 app = FastAPI(title="Cuepoint API")
 
@@ -53,8 +52,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(analyze.router, prefix="/api", dependencies=[Depends(verify_client_key)])
-app.include_router(agent.router, prefix="/api/agent", dependencies=[Depends(verify_client_key)])
+app.include_router(analyze.router, prefix="/api")
+app.include_router(agent.router, prefix="/api/agent")
 
 @app.get("/health")
 def health():

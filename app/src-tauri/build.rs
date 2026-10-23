@@ -36,8 +36,6 @@ fn main() {
     // same gitignored .env as everything else above, and rotated after the
     // exposure (old value revoked; see EC2's own .env, which must carry the
     // same new value for the client and server to agree).
-    println!("cargo:rustc-env=CUEPOINT_API_BASE_URL=http://127.0.0.1:43127");
-    println!("cargo:rustc-env=CUEPOINT_CLIENT_KEY=");
     println!("cargo:rerun-if-changed=../../.env");
 
     tauri_build::build()

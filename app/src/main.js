@@ -4,12 +4,10 @@ const { listen } = window.__TAURI__.event;
 const { invoke } = window.__TAURI__.core;
 const { Window } = window.__TAURI__.window;
 
-// Backend URL + client key come from Rust (app/src-tauri/src/api_config.rs),
-// which picks local vs. prod at compile time from CUEPOINT_ENV in its own
-// .env - JS has no build step of its own, so it just follows whatever this
-// particular build was compiled for instead of keeping a second switch here.
-const { base_url: API_BASE_URL, client_key: CLIENT_KEY } = await invoke('get_api_config');
-const API_HEADERS = { "Content-Type": "application/json", "X-Cuepoint-Client-Key": CLIENT_KEY };
+// The bundled Rust host owns the loopback service address, keeping one
+// source of truth for every desktop request.
+const { base_url: API_BASE_URL } = await invoke('get_api_config');
+const API_HEADERS = { "Content-Type": "application/json" };
 
 const container = document.getElementById('overlay-container');
 const img = document.getElementById('screenshot-img');
@@ -996,9 +994,7 @@ async function runAgentTask(taskDescription, source = 'typed') {
     for (let attempt = 0; attempt < AGENT_POLL_MAX_ATTEMPTS; attempt++) {
         await new Promise(r => setTimeout(r, AGENT_POLL_INTERVAL_MS));
 
-        const getRes = await fetch(`${API_BASE_URL}/api/agent/task/${task_id}`, {
-            headers: { "X-Cuepoint-Client-Key": CLIENT_KEY }
-        });
+        const getRes = await fetch(`${API_BASE_URL}/api/agent/task/${task_id}`);
         const statusData = await getRes.json();
 
         if (statusData.status === "SUCCESS") {

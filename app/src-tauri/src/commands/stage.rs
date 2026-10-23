@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use base64::Engine;
 use tauri::{AppHandle, Manager};
 
-use crate::api_config::{API_BASE_URL, CLIENT_KEY};
+use crate::api_config::API_BASE_URL;
 
 /// The server keeps a staged screenshot for 60 s; stop using a ref well
 /// before that so it can't expire between the check and the request.
@@ -80,7 +80,6 @@ async fn upload(png: &[u8]) -> Result<String, String> {
     let b64 = base64::engine::general_purpose::STANDARD.encode(png);
     let res = reqwest::Client::new()
         .post(format!("{}/api/stage-screenshot", API_BASE_URL))
-        .header("X-Cuepoint-Client-Key", CLIENT_KEY)
         .timeout(Duration::from_secs(30))
         .json(&serde_json::json!({ "screenshot_base64": b64 }))
         .send()
@@ -141,7 +140,6 @@ pub async fn post_with_staged_screenshot(
         payload["screenshot_ref"] = serde_json::Value::String(reference);
         let res = client
             .post(url)
-            .header("X-Cuepoint-Client-Key", CLIENT_KEY)
             .json(&payload)
             .send()
             .await
@@ -154,7 +152,6 @@ pub async fn post_with_staged_screenshot(
     }
     client
         .post(url)
-        .header("X-Cuepoint-Client-Key", CLIENT_KEY)
         .json(&payload)
         .send()
         .await

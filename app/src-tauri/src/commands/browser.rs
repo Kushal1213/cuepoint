@@ -2,10 +2,8 @@
 // resources/browser/browser-driver.js) spawned as a persistent subprocess
 // on the USER's own machine, so a browser-based agent step opens a real,
 // visible window and clicks by accessibility role+name instead of by
-// guessed pixel coordinates. Deliberately NOT run on the backend: the
-// backend can be a remote server (CUEPOINT_ENV=prod), where a browser it
-// opened would be invisible and useless to the user watching their own
-// screen.
+// guessed pixel coordinates. It runs on the same computer as Cuepoint so
+// the browser stays visible and controllable by the user.
 //
 // Node.js is a documented prerequisite (Setup Guide); the `playwright`
 // npm package and its browser binary are fetched lazily on first actual

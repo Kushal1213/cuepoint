@@ -7,4 +7,4 @@ npm install
 npm run tauri dev
 ```
 
-The app targets the local backend by default. Production builds read `CUEPOINT_API_BASE_URL` and `CUEPOINT_CLIENT_KEY` from the repository root `.env`.
+Cuepoint 0.3.1 always talks to the bundled loopback-only service at `127.0.0.1:43127`. Release installers include that service and manage its lifecycle automatically.

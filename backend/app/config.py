@@ -16,9 +16,6 @@ class Settings(BaseSettings):
     # not per-user like the GitHub token, so it lives in .env like the Gemini
     # key rather than being entered in Settings.
     tavily_api_key: str = ""
-    # Kept for source-run compatibility. Packaged builds bind to loopback and
-    # do not expose a shared hosted service.
-    cuepoint_client_key: str = ""
     # Per-process cap for model-backed routes. Cheap polling is not gated.
     rate_limit_per_minute: int = 30
 

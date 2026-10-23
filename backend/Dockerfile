@@ -7,10 +7,8 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 # Stage 2: runtime
 FROM python:3.12-slim AS runtime
 WORKDIR /app
-# Node/npx: only the worker needs this, to run the filesystem MCP server
-# (`npx @modelcontextprotocol/server-filesystem`) as a subprocess — installed
-# in the shared image rather than maintaining a second Dockerfile just for
-# the worker's one extra dependency.
+# Node/npx supports the optional read-only filesystem MCP tool when running
+# the local API through Docker for development.
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /root/.local /root/.local

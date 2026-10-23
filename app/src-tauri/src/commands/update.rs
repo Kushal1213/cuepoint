@@ -1,6 +1,7 @@
 use serde::Serialize;
 
-const REPO_LATEST_RELEASE_API: &str = "https://api.github.com/repos/Kushal1213/cuepoint/releases/latest";
+const REPO_LATEST_RELEASE_API: &str =
+    "https://api.github.com/repos/Kushal1213/cuepoint/releases/latest";
 
 #[derive(Debug, Serialize)]
 pub struct UpdateInfo {
@@ -40,9 +41,29 @@ pub async fn check_for_update() -> Result<Option<UpdateInfo>, String> {
     if !res.status().is_success() {
         return Ok(None);
     }
-    let Ok(json) = res.json::<serde_json::Value>().await else { return Ok(None) };
-    let Some(tag_name) = json.get("tag_name").and_then(|v| v.as_str()) else { return Ok(None) };
-    let Some(html_url) = json.get("html_url").and_then(|v| v.as_str()) else { return Ok(None) };
+    let Ok(json) = res.json::<serde_json::Value>().await else {
+        return Ok(None);
+    };
+    let Some(tag_name) = json.get("tag_name").and_then(|v| v.as_str()) else {
+        return Ok(None);
+    };
+    let Some(html_url) = json.get("html_url").and_then(|v| v.as_str()) else {
+        return Ok(None);
+    };
+    let installer_url = json
+        .get("assets")
+        .and_then(|value| value.as_array())
+        .and_then(|assets| {
+            assets.iter().find_map(|asset| {
+                let name = asset.get("name")?.as_str()?;
+                if name.ends_with("_x64-setup.exe") {
+                    asset.get("browser_download_url")?.as_str()
+                } else {
+                    None
+                }
+            })
+        })
+        .unwrap_or(html_url);
 
     let current = parse_version(env!("CARGO_PKG_VERSION"));
     let latest = parse_version(tag_name);
@@ -50,7 +71,7 @@ pub async fn check_for_update() -> Result<Option<UpdateInfo>, String> {
     if latest > current {
         Ok(Some(UpdateInfo {
             version: tag_name.trim_start_matches('v').to_string(),
-            url: html_url.to_string(),
+            url: installer_url.to_string(),
         }))
     } else {
         Ok(None)

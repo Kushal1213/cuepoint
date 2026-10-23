@@ -1,7 +1,7 @@
 use tauri::{AppHandle, Emitter, State};
 use serde::{Deserialize, Serialize};
 use crate::CaptureState;
-use crate::api_config::{API_BASE_URL, CLIENT_KEY};
+use crate::api_config::API_BASE_URL;
 use base64::Engine;
 use futures_util::StreamExt;
 use std::sync::Mutex;
@@ -120,7 +120,6 @@ async fn post_and_stream(
     } else {
         reqwest::Client::new()
             .post(&url)
-            .header("X-Cuepoint-Client-Key", CLIENT_KEY)
             .json(&payload)
             .send()
             .await

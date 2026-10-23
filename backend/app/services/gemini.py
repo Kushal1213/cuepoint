@@ -34,7 +34,7 @@ class GeminiService:
             return f"Error communicating with Gemini: {str(e)}"
 
     def analyze_text_sync(self, prompt: str, use_search: bool = False) -> str:
-        """Text-only, blocking call - for the Celery worker, which runs
+        """Text-only, blocking call - for the local task thread, which runs
         tasks in a plain sync context rather than an asyncio event loop.
         `use_search` grounds the response in live Google Search results
         (Gemini decides per-request whether a search is actually needed -
@@ -71,7 +71,7 @@ class GeminiService:
             return f"Error communicating with Gemini: {str(e)}"
 
     def analyze_sync(self, image_bytes: bytes, prompt: str, use_search: bool = False) -> str:
-        """Vision-capable blocking call - for the Celery worker (agent tasks),
+        """Vision-capable blocking call - for local background agent tasks,
         which needs to see the screen too (e.g. "draft a reply to the message
         on screen") but runs in a plain sync context like analyze_text_sync.
         Same grounding-quota fallback as analyze_text_sync."""

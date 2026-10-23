@@ -1,7 +1,6 @@
 import base64
 import json
 import re
-from app.worker.celery_app import celery_app
 from app.services.llm import api_key_for, get_llm
 from app.services.mcp_filesystem import run_agent_turn_with_filesystem_sync
 from app.services.github_mcp import run_agent_turn_with_github_sync
@@ -47,9 +46,8 @@ def _validate_proposed_action(proposed_action):
     return None
 
 
-@celery_app.task(bind=True)
 def run_agent_task(
-    self, task_description: str, session_id: str, clipboard_text: str = "",
+    task_description: str, session_id: str, clipboard_text: str = "",
     screenshot_base64: str = "", github_token: str = "",
     gemini_api_key: str = "", tavily_api_key: str = "",
     provider: str = "gemini", model: str = "", openai_api_key: str = "",
@@ -230,8 +228,7 @@ def run_agent_task(
     if needs_filesystem:
         if not settings.cuepoint_fs_root:
             answer_text = (
-                "File access isn't set up yet - set CUEPOINT_FS_ROOT_HOST in the project's .env to a real "
-                "folder and restart the worker (docker compose up -d --build worker)."
+                "File access isn't set up yet. Set CUEPOINT_FS_ROOT to the folder Cuepoint may read, then restart Cuepoint."
             )
             clipboard_write = None
             proposed_action = None

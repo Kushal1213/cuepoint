@@ -1,6 +1,6 @@
 [package]
 name = "cuepoint"
-version = "0.3.0"
+version = "0.3.1"
 description = "A screen-aware AI assistant for Windows"
 authors = ["Kushal Choudhary (@Kushal1213)"]
 homepage = "https://kushal1213.github.io/cuepoint/"

@@ -86,7 +86,7 @@ def run_agent_turn_with_github_sync(
     prompt: str, model: str, api_key: str, github_token: str,
     image_bytes: Optional[bytes] = None, provider: str = "gemini",
 ) -> str:
-    """Blocking entry point for the Celery task (plain sync context, no
+    """Blocking entry point for the local task thread (plain sync context, no
     running event loop) - mirrors mcp_filesystem's sync wrapper."""
     return asyncio.run(_run(prompt, model, api_key, github_token, image_bytes, provider))
 

@@ -3,6 +3,7 @@ pub mod capture;
 pub mod overlay;
 pub mod commands;
 pub mod voice;
+pub mod local_backend;
 
 use std::sync::Mutex;
 use crate::capture::cursor::MonitorInfo;
@@ -284,6 +285,7 @@ pub fn run() {
         .manage(Mutex::new(commands::stage::StageState::new()))
         .manage(commands::tts::TtsState::new())
         .manage(Mutex::new(None::<commands::browser::BrowserSession>))
+        .manage(local_backend::LocalBackend::new())
         .invoke_handler(tauri::generate_handler![
             api_config::get_api_config,
             trigger_capture,
@@ -356,6 +358,7 @@ pub fn run() {
         ])
         .setup(|app| {
             use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
+            local_backend::start(app.handle()).map_err(std::io::Error::other)?;
             // Primary: single press, immediate capture + analyze, no region select.
             let primary = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
             // Secondary: manual drag-to-crop flow, demoted behind an extra modifier.

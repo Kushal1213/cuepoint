@@ -1,18 +1,11 @@
 import time
+from collections import defaultdict, deque
+from threading import Lock
 from fastapi import HTTPException, Request
-from redis.asyncio import Redis
 from app.config import settings
 
-# Lazy - module import shouldn't require Redis to be reachable yet (e.g.
-# during tests or before docker-compose brings redis up).
-_redis: Redis | None = None
-
-
-def _get_redis() -> Redis:
-    global _redis
-    if _redis is None:
-        _redis = Redis.from_url(settings.redis_url, decode_responses=True)
-    return _redis
+_requests: dict[str, deque[float]] = defaultdict(deque)
+_lock = Lock()
 
 
 def _client_ip(request: Request) -> str:
@@ -26,17 +19,15 @@ def _client_ip(request: Request) -> str:
 
 
 async def rate_limit(request: Request):
-    """Fixed one-minute window per IP, applied only to the specific routes
-    that actually call Gemini/Tavily (see main.py-adjacent route decorators)
-    - the cheap GET status-poll endpoint deliberately isn't gated by this,
-    since a single legitimate agent task polls it dozens of times/minute on
-    its own."""
+    """Sliding one-minute in-memory limit for model-backed routes."""
     ip = _client_ip(request)
-    window = int(time.time() // 60)
-    key = f"ratelimit:{ip}:{window}"
-    r = _get_redis()
-    count = await r.incr(key)
-    if count == 1:
-        await r.expire(key, 65)
-    if count > settings.rate_limit_per_minute:
+    now = time.monotonic()
+    with _lock:
+        entries = _requests[ip]
+        while entries and now - entries[0] >= 60:
+            entries.popleft()
+        limited = len(entries) >= settings.rate_limit_per_minute
+        if not limited:
+            entries.append(now)
+    if limited:
         raise HTTPException(status_code=429, detail="Too many requests - slow down and try again in a moment.")

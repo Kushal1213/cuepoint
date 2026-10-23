@@ -10,7 +10,7 @@
   [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
   [![Platform](https://img.shields.io/badge/platform-Windows-0078D6)](https://github.com/Kushal1213/cuepoint/releases/latest)
   [![Built with Tauri](https://img.shields.io/badge/desktop-Tauri%202-24C8DB)](https://tauri.app)
-  [![Backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20Celery-009688)](backend)
+  [![Backend](https://img.shields.io/badge/backend-Local%20FastAPI-009688)](backend)
   [![BYOK](https://img.shields.io/badge/AI-Gemini%20%7C%20OpenAI%20(BYOK)-8b5cf6)](#bring-your-own-key)
 
   [Website](https://kushal1213.github.io/cuepoint/) · [Setup Guide](https://kushal1213.github.io/cuepoint/setup.html) · [Privacy](https://kushal1213.github.io/cuepoint/privacy.html) · [Releases](https://github.com/Kushal1213/cuepoint/releases) · [Issues](https://github.com/Kushal1213/cuepoint/issues)
@@ -43,13 +43,13 @@ Cuepoint does not use a shared model account. Connect a [Gemini](https://aistudi
 
 ## Install
 
-Download the **[Cuepoint 0.3.0 Windows installer](https://github.com/Kushal1213/cuepoint/releases/download/v0.3.0/Cuepoint_0.3.0_x64-setup.exe)**. This first package is configured for the local backend at `http://localhost:8000`, so start the backend with `docker compose up -d` before opening the app. The **[setup guide](https://kushal1213.github.io/cuepoint/setup.html)** covers modes, voice, permissions, and optional connections.
+Download the **[Cuepoint 0.3.1 Windows installer](https://github.com/Kushal1213/cuepoint/releases/download/v0.3.1/Cuepoint_0.3.1_x64-setup.exe)**. The app includes and manages its local service automatically—there is no server account, Docker, Redis, or Python setup. The **[setup guide](https://kushal1213.github.io/cuepoint/setup.html)** covers modes, voice, permissions, and optional connections.
 
 Requires 64-bit Windows 10 (1903 or later) or Windows 11, plus the Microsoft Visual C++ Redistributable, which most PCs already have. If Cuepoint won't start and mentions a missing `MSVCP140.dll` or `VCRUNTIME140.dll`, install the [x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) and try again.
 
 ## Build from source
 
-Cuepoint is two pieces: a Tauri (Rust) desktop client, and a FastAPI + Celery backend it talks to. You can run both locally against your own backend instead of the hosted one.
+Cuepoint is a Tauri desktop client with a bundled FastAPI service. Both run on the same Windows computer; model requests go directly from that local service to the provider selected in Settings under the user's own key.
 
 **Desktop client** (`app/`)
 ```powershell
@@ -58,16 +58,16 @@ npm install
 npm run tauri dev
 ```
 
-**Backend** (`backend/`, via Docker Compose)
+**Local service** (`backend/`)
 ```powershell
-# root .env needs at minimum:
-#   GEMINI_API_KEY=...   (or leave blank and add a key in Settings instead)
-docker compose up -d
+cd backend
+python -m pip install -r requirements.txt
+python local_server.py
 ```
 
-By default the client build targets `http://localhost:8000`. For a production build, set `CUEPOINT_ENV=prod`, `CUEPOINT_API_BASE_URL`, and `CUEPOINT_CLIENT_KEY` in the root `.env` (see [`app/src-tauri/build.rs`](app/src-tauri/build.rs)).
+Development builds target the loopback-only service at `http://127.0.0.1:43127`. Release builds package the service as a background executable and start it with Cuepoint.
 
-**Requirements:** Rust (stable) + the Tauri prerequisites for Windows, Node.js (client build, and lazily for browser-automation tasks at runtime), Docker (backend).
+**Requirements:** Rust (stable), Python 3.12, and the Tauri prerequisites for Windows. Node.js is required for the client build and is currently downloaded separately by users who opt into browser-automation tasks.
 
 ## Architecture
 
@@ -75,7 +75,7 @@ By default the client build targets `http://localhost:8000`. For a production bu
   <img src=".github/assets/architecture.png" alt="Cuepoint architecture: the Tauri app on your PC sends a screenshot and question to a FastAPI relay, which calls Gemini or OpenAI with your own key and returns an answer plus coordinates" width="800">
 </p>
 
-The backend is a relay, not a store: screenshots, queries and answers pass through per request and aren't retained. See [Privacy](https://kushal1213.github.io/cuepoint/privacy.html) for exactly what's kept, for how long, and why.
+The local service is a relay, not a store: screenshots, queries and answers pass through it in memory and are not sent to a Cuepoint-operated server. See [Privacy](https://kushal1213.github.io/cuepoint/privacy.html) for exactly what is kept, for how long, and why.
 
 ## Privacy and diagnostics
 

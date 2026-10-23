@@ -133,6 +133,6 @@ def run_agent_turn_with_filesystem_sync(
     prompt: str, model: str, api_key: str, fs_root: str,
     image_bytes: bytes | None = None, provider: str = "gemini",
 ) -> str:
-    """Blocking entry point for the Celery task (plain sync context, no
+    """Blocking entry point for the local task thread (plain sync context, no
     running event loop) - mirrors GeminiService's *_sync methods."""
     return asyncio.run(_run(prompt, model, api_key, fs_root, image_bytes, provider))

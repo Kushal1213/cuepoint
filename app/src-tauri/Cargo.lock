@@ -741,6 +741,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52560adf09603e58c9a7ee1fe1dcb95a16927b17c127f0ac02d6e768a0e25bc1"
 
 [[package]]
+name = "cuepoint"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "base64 0.22.1",
+ "chrono",
+ "cpal",
+ "enigo",
+ "futures-util",
+ "image",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-global-shortcut",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "transcribe-rs",
+ "uuid",
+ "windows 0.58.0",
+ "windows-capture",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3118,35 +3147,6 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide",
-]
-
-[[package]]
-name = "cuepoint"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "arboard",
- "base64 0.22.1",
- "chrono",
- "cpal",
- "enigo",
- "futures-util",
- "image",
- "reqwest",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tauri",
- "tauri-build",
- "tauri-plugin-global-shortcut",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "transcribe-rs",
- "uuid",
- "windows 0.58.0",
- "windows-capture",
 ]
 
 [[package]]

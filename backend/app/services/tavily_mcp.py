@@ -55,7 +55,7 @@ def run_agent_turn_with_web_search_sync(
     prompt: str, model: str, api_key: str, tavily_api_key: str,
     image_bytes: Optional[bytes] = None, provider: str = "gemini",
 ) -> str:
-    """Blocking entry point for the Celery task - mirrors github_mcp's sync wrapper."""
+    """Blocking entry point for the local task thread - mirrors GitHub's sync wrapper."""
     return asyncio.run(_run(prompt, model, api_key, tavily_api_key, image_bytes, provider))
 
 

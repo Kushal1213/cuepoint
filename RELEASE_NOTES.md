@@ -1,6 +1,6 @@
-# Cuepoint 0.3.0
+# Cuepoint 0.3.1
 
-The first Cuepoint release under [@Kushal1213](https://github.com/Kushal1213).
+Cuepoint now runs as a self-contained local Windows application.
 
 ## What is included
 
@@ -12,15 +12,11 @@ The first Cuepoint release under [@Kushal1213](https://github.com/Kushal1213).
 - Optional read-only GitHub access and Tavily web search.
 - Local Task History and opt-in anonymous diagnostics.
 - A fully remapped Cuepoint interface, website, setup guide, privacy guide, and project documentation.
+- A bundled loopback-only FastAPI service that starts and stops with the desktop app.
+- In-memory task execution and throttling with no Celery, Redis, Docker, or hosted Cuepoint server.
 
 ## Before installing
 
-This first package is the safe self-hosted build and connects to `http://localhost:8000`. Start the backend from the source archive with:
-
-```powershell
-docker compose up -d
-```
-
-Then install Cuepoint and connect a Gemini or OpenAI API key in Settings.
+Install Cuepoint and connect a Gemini or OpenAI API key in Settings. The local service is included and starts automatically. Model, Tavily, GitHub, update, and optional diagnostics requests still require internet access when those features are used.
 
 Requires 64-bit Windows 10 version 1903 or later, or Windows 11.

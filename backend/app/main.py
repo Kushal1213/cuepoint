@@ -21,8 +21,8 @@ _TIMED_PATHS = {
 async def log_request_timing(request: Request, call_next):
     """Structured stdout timing for the model-backed routes.
 
-    Deliberately local-only: one JSON line per request to stdout (picked up
-    by `docker compose logs`), no forwarding anywhere. Client-side PostHog
+    Deliberately local-only: one JSON line per request to local stdout, no
+    forwarding anywhere. Client-side PostHog
     events already cover product usage, and request bodies here carry
     screenshots, queries and BYOK keys - none of which should ever leave
     the server. Only the path, status and duration are recorded.

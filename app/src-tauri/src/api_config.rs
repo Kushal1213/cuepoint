@@ -1,13 +1,6 @@
-/// Single place for the backend URL and shared client key, picked at
-/// compile time from CUEPOINT_ENV in app/src-tauri/.env (read by build.rs,
-/// defaults to "local" if that file/key is missing). Set CUEPOINT_ENV=prod
-/// to build against the deployed backend; leave it unset/"local" for
-/// everyday `cargo tauri dev` against a locally-running docker-compose
-/// backend. The key matches CUEPOINT_CLIENT_KEY in the server's own .env
-/// (see backend/app/security.py) - a deterrent against random scraping on
-/// a publicly-reachable, quota-metered backend, not real per-user auth (it
-/// ships inside this binary in prod builds). Empty locally, matching the
-/// server's no-op behavior when CUEPOINT_CLIENT_KEY isn't set.
+/// The desktop app always talks to its own loopback-only bundled service.
+/// Provider requests leave the machine only when a user invokes a feature
+/// that needs their configured model/search/GitHub provider.
 pub const API_BASE_URL: &str = env!("CUEPOINT_API_BASE_URL");
 pub const CLIENT_KEY: &str = env!("CUEPOINT_CLIENT_KEY");
 

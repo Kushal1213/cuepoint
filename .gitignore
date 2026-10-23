@@ -9,5 +9,8 @@ __pycache__/
 *.pyc
 app/node_modules/
 app/src-tauri/target/
+app/src-tauri/resources/backend/*.exe
+backend/build/
+backend/dist/
 .DS_Store
 Thumbs.db

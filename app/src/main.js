@@ -812,7 +812,7 @@ function capabilityUsed(response) {
 
 /// The backend swallows Gemini/tool failures into a plain string answer
 /// instead of raising (GeminiService.*_sync, tasks.py's needs_* fallbacks),
-/// so Celery reports the task as SUCCESS even when the "answer" is really
+/// so the local task runner reports SUCCESS even when the "answer" is really
 /// an error. Caught for real: two runs that had actually failed (a 503
 /// from Gemini) showed up in telemetry as agent_task_completed, with no
 /// agent_task_failed anywhere - the exact case this list exists to catch.
@@ -822,7 +822,7 @@ function capabilityUsed(response) {
 const BACKEND_ERROR_ANSWERS = [
     "Gemini API key not configured.",
     "OpenAI API key not configured.",
-    "File access isn't set up yet - set CUEPOINT_FS_ROOT_HOST in the project's .env to a real folder and restart the worker (docker compose up -d --build worker).",
+    "File access isn't set up yet. Set CUEPOINT_FS_ROOT to the folder Cuepoint may read, then restart Cuepoint.",
     "Something went wrong reading files for this task.",
     "GitHub isn't connected yet - add a token in Settings.",
     "Something went wrong checking GitHub for this task.",

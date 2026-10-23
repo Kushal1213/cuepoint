@@ -1,22 +1,6 @@
 use std::fs;
 
 fn main() {
-    // Reads the project root's .env (same gitignored file the backend uses,
-    // two levels up from this crate) for CUEPOINT_ENV=local|prod, baked in at
-    // compile time via env!() in api_config.rs. Defaults to "local" if the
-    // file or key is missing, so a fresh clone never accidentally builds
-    // pointed at someone else's prod backend/key without an explicit opt-in.
-    let env_value = fs::read_to_string("../../.env")
-        .ok()
-        .and_then(|contents| {
-            contents.lines().find_map(|line| {
-                line.trim()
-                    .strip_prefix("CUEPOINT_ENV=")
-                    .map(|v| v.trim().trim_matches('"').to_string())
-            })
-        })
-        .unwrap_or_else(|| "local".to_string());
-
     // PostHog project API key, same root .env, same compile-time baking.
     // A PostHog *project* key is designed to be public in client apps (it
     // can only write events, not read them), so shipping it inside the
@@ -52,17 +36,8 @@ fn main() {
     // same gitignored .env as everything else above, and rotated after the
     // exposure (old value revoked; see EC2's own .env, which must carry the
     // same new value for the client and server to agree).
-    let (base_url, client_key) = if env_value == "prod" {
-        let configured_url = read_key("CUEPOINT_API_BASE_URL");
-        if configured_url.is_empty() {
-            panic!("CUEPOINT_API_BASE_URL must be set for production builds");
-        }
-        (configured_url, read_key("CUEPOINT_CLIENT_KEY"))
-    } else {
-        ("http://localhost:8000".to_string(), String::new())
-    };
-    println!("cargo:rustc-env=CUEPOINT_API_BASE_URL={}", base_url);
-    println!("cargo:rustc-env=CUEPOINT_CLIENT_KEY={}", client_key);
+    println!("cargo:rustc-env=CUEPOINT_API_BASE_URL=http://127.0.0.1:43127");
+    println!("cargo:rustc-env=CUEPOINT_CLIENT_KEY=");
     println!("cargo:rerun-if-changed=../../.env");
 
     tauri_build::build()

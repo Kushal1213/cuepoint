@@ -2,12 +2,12 @@ import base64
 import json
 import re
 from fastapi import APIRouter, Depends
-from celery.result import AsyncResult
 from app.models.agent import (
     AgentTaskRequest, AgentTaskResponse, AgentTaskStatusResponse,
     AgentStepRequest, AgentStepResponse,
 )
 from app.worker.tasks import run_agent_task
+from app.services import local_tasks
 from app.services.llm import get_llm
 from app.rate_limit import rate_limit
 from app.routes.analyze import resolve_screenshot
@@ -155,37 +155,28 @@ def _build_step_prompt(
 
 @router.post("/task", response_model=AgentTaskResponse, dependencies=[Depends(rate_limit)])
 async def create_agent_task(request: AgentTaskRequest):
-    # Resolved here, in the API process that holds the stage, before the
-    # screenshot is handed to the Celery worker (a separate process).
+    # Resolve the short-lived staged screenshot before handing the work to
+    # the local background thread.
     resolve_screenshot(request)
-    # Queue the Celery task
-    task = run_agent_task.delay(
+    task_id = local_tasks.submit(
+        run_agent_task,
         request.task_description, request.session_id, request.clipboard_text,
         request.screenshot_base64, request.github_token,
         request.gemini_api_key, request.tavily_api_key,
         request.provider, request.model, request.openai_api_key,
     )
-    return AgentTaskResponse(task_id=task.id)
+    return AgentTaskResponse(task_id=task_id)
 
 @router.get("/task/{task_id}", response_model=AgentTaskStatusResponse)
 async def get_agent_task_status(task_id: str):
-    # Fetch task status from Celery (Redis backend)
-    task_result = AsyncResult(task_id)
-    
-    result_data = None
-    if task_result.ready():
-        if task_result.successful():
-            result_data = task_result.result
-        else:
-            result_data = str(task_result.info) # Usually exception string
-            
+    status, result_data = local_tasks.get(task_id)
     return AgentTaskStatusResponse(
         task_id=task_id,
-        status=task_result.status,
+        status=status,
         result=result_data
     )
 
-# Sync, not queued through Celery - each step needs to feel responsive as
+# Sync, not queued through the local task runner - each step needs to feel responsive as
 # the automation runs (the client drives the loop, awaiting one step at a
 # time), unlike the normal agent task which is fine polled over ~1-2s.
 @router.post("/step", response_model=AgentStepResponse, dependencies=[Depends(rate_limit)])
